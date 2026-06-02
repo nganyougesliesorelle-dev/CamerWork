@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Briefcase, Building2, Clock, User, ChevronDown, PlusCircle, LogOut } from 'lucide-react'; 
+import { Search, MapPin, Briefcase, Building2, Clock, User, ChevronDown, PlusCircle, LogOut, Sparkles } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig'; 
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth'; // Pour la déconnexion
+import { signOut } from 'firebase/auth'; 
 import { toast } from 'sonner';
-
-// Composant Carte d'Offre (Inchangé, juste formaté)
-const JobCard = ({ job, onClick }) => {
+import { calculateMatchingScore } from "../firebase/matchingEngine";
+// Composant Carte d'Offre avec Badge de Correspondance Intelligent
+const JobCard = ({ job, score, userRole, onClick }) => {
   const formatDate = (timestamp) => {
     if (!timestamp) return "À l'instant";
     try {
@@ -21,23 +21,42 @@ const JobCard = ({ job, onClick }) => {
     }
   };
 
+  // Couleurs dynamiques selon le pourcentage de compatibilité
+  const getScoreBadgeStyle = (score) => {
+    if (score >= 75) return "bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-sm shadow-amber-200 animate-pulse";
+    if (score >= 40) return "bg-blue-50 text-blue-700 border border-blue-200";
+    return "bg-slate-50 text-slate-500";
+  };
+
   return (
     <div 
       onClick={onClick}
-      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer group"
+      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer group flex flex-col justify-between"
     >
-      <div className="flex justify-between items-start mb-4">
-        <div className="bg-blue-50 p-3 rounded-xl group-hover:bg-blue-600 transition-colors">
-          <Building2 className="w-6 h-6 text-blue-600 group-hover:text-white" />
+      <div>
+        <div className="flex justify-between items-start mb-4">
+          <div className="bg-blue-50 p-3 rounded-xl group-hover:bg-blue-600 transition-colors">
+            <Building2 className="w-6 h-6 text-blue-600 group-hover:text-white" />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {/* Affichage du badge de score uniquement pour les candidats connectés */}
+            {userRole === 'candidate' && score > 0 && (
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase flex items-center gap-1 ${getScoreBadgeStyle(score)}`}>
+                <Sparkles size={10} /> {score}% Match
+              </span>
+            )}
+            <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full uppercase">
+              {job.type || 'CDI'}
+            </span>
+          </div>
         </div>
-        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full uppercase">
-          {job.type || 'CDI'}
-        </span>
+        
+        <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{job.title}</h3>
+        <p className="text-slate-500 text-sm mb-4 font-medium">{job.company}</p>
       </div>
-      <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{job.title}</h3>
-      <p className="text-slate-500 text-sm mb-4 font-medium">{job.company}</p>
       
-      <div className="flex items-center gap-4 text-slate-400 text-xs border-t pt-4">
+      <div className="flex items-center gap-4 text-slate-400 text-xs border-t pt-4 mt-4">
         <div className="flex items-center gap-1 font-semibold text-slate-500">
           <MapPin className="w-3 h-3 text-blue-500" />
           {job.city}
@@ -58,6 +77,7 @@ export function JobList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [userRole, setUserRole] = useState(null);
+  const [candidateProfile, setCandidateProfile] = useState(null); // Stocke les compétences/ville du candidat
 
   const CAMEROON_CITIES = [
     "Toutes les villes", "Douala", "Yaoundé", "Garoua", "Maroua", 
@@ -75,7 +95,7 @@ export function JobList() {
   };
 
   useEffect(() => {
-    // 1. Récupérer les offres avec nettoyage
+    // 1. Récupérer les offres
     const q = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const jobsData = snapshot.docs.map(doc => ({
@@ -89,15 +109,25 @@ export function JobList() {
         setLoading(false);
     });
 
-    // 2. Vérifier le rôle de l'utilisateur
+    // 2. Vérifier le rôle de l'utilisateur + récupérer son profil
     const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          setUserRole(userDoc.data().role);
+          const userData = userDoc.data();
+          setUserRole(userData.role);
+          
+          // Si c'est un candidat, on sauvegarde ses infos de matching (skills, location)
+          if (userData.role === 'candidate') {
+            setCandidateProfile({
+              skills: userData.skills || [],
+              location: userData.location || ''
+            });
+          }
         }
       } else {
         setUserRole(null);
+        setCandidateProfile(null);
       }
     });
 
@@ -107,18 +137,27 @@ export function JobList() {
     };
   }, []);
 
-  const filteredJobs = jobs.filter(job => {
-    const title = job.title?.toLowerCase() || "";
-    const company = job.company?.toLowerCase() || "";
-    const city = job.city?.toLowerCase() || "";
-    const matchesSearch = title.includes(searchQuery.toLowerCase()) || company.includes(searchQuery.toLowerCase());
-    const matchesLocation = !locationQuery || locationQuery === "Toutes les villes" || city === locationQuery.toLowerCase();
-    return matchesSearch && matchesLocation;
-  });
+  // Filtrage et Tri Intelligent par Score de Matching
+  const processedJobs = jobs
+    .map(job => {
+      // Calcul du score individuel pour chaque offre
+      const score = userRole === 'candidate' ? calculateMatchingScore(candidateProfile, job) : 0;
+      return { ...job, matchingScore: score };
+    })
+    .filter(job => {
+      const title = job.title?.toLowerCase() || "";
+      const company = job.company?.toLowerCase() || "";
+      const city = job.city?.toLowerCase() || "";
+      const matchesSearch = title.includes(searchQuery.toLowerCase()) || company.includes(searchQuery.toLowerCase());
+      const matchesLocation = !locationQuery || locationQuery === "Toutes les villes" || city === locationQuery.toLowerCase();
+      return matchesSearch && matchesLocation;
+    })
+    // Tri : Les meilleurs scores de matching passent au premier plan
+    .sort((a, b) => b.matchingScore - a.matchingScore);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-32">
-      {/* Header avec bouton Logout en haut à droite */}
+      {/* Header */}
       <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 text-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
           <div className="flex justify-between items-start">
@@ -170,7 +209,7 @@ export function JobList() {
       <div className="max-w-7xl mx-auto px-6 mt-12">
         <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center gap-3">
           Offres disponibles 
-          <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full">{filteredJobs.length}</span>
+          <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full">{processedJobs.length}</span>
         </h2>
         
         {loading ? (
@@ -178,12 +217,14 @@ export function JobList() {
              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
              <p className="text-slate-400 font-bold">Chargement...</p>
           </div>
-        ) : filteredJobs.length > 0 ? (
+        ) : processedJobs.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJobs.map((job) => (
+            {processedJobs.map((job) => (
               <JobCard 
                 key={job.id} 
                 job={job} 
+                score={job.matchingScore}
+                userRole={userRole}
                 onClick={() => navigate(`/offres/${job.id}`)}
               />
             ))}
@@ -207,7 +248,7 @@ export function JobList() {
 
         {userRole === 'recruiter' ? (
           <>
-            <button onClick={() => navigate('/dashboard-recruteur')} className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-600 transition-all active:scale-90">
+            <button onClick={() => navigate('/DashboardRecruiter')} className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-600 transition-all active:scale-90">
               <Building2 size={24} />
               <span className="text-[10px] font-black uppercase">Espace</span>
             </button>

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'; 
+import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; 
 
 // Import de la fonction de service que nous avons centralisée
 import { applyToJob } from '../firebase/authService'; 
@@ -66,6 +66,14 @@ export function JobDetails() {
   }, [id, navigate]);
 
   const handleApply = async () => {
+    // --- REDIRECTION POUR LES OFFRES SCRAPÉES ---
+    if (job?.isScraped && job?.sourceUrl) {
+      toast.info("Redirection vers le site partenaire...");
+      window.open(job.sourceUrl, "_blank", "noopener,noreferrer");
+      return; // On stoppe l'exécution ici pour éviter l'envoi en interne
+    }
+    // --------------------------------------------
+
     const user = auth.currentUser;
     
     if (!user) {
@@ -86,6 +94,21 @@ export function JobDetails() {
         toast.success('Candidature envoyée !', {
           description: `Ton profil est maintenant chez ${job?.company}.`,
         });
+
+        // --- AJOUT DE LA NOTIFICATION POUR LE RECRUTEUR ---
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const candidateName = userSnap.exists() ? userSnap.data().name : "Un candidat";
+
+        if (job?.recruiterId) {
+          await addDoc(collection(db, "notifications"), {
+            userId: job.recruiterId,
+            title: "Nouvelle candidature !",
+            message: `${candidateName} a postulé pour le poste de : ${job.title}.`,
+            type: "application",
+            read: false,
+            createdAt: serverTimestamp()
+          });
+        }
       } else {
         throw new Error(result.error);
       }
@@ -127,6 +150,12 @@ export function JobDetails() {
                     <span className="flex items-center gap-1 text-slate-400 text-[10px] font-black uppercase">
                         <MapPin size={12} /> {job.city}
                     </span>
+                    {/* Badge d'indication de la source pour la transparence */}
+                    {job.isScraped && (
+                      <span className="px-3 py-1 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider">
+                        Partenaire Externe
+                      </span>
+                    )}
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-none mb-4 uppercase tracking-tighter">
                     {job.title}
@@ -137,7 +166,9 @@ export function JobDetails() {
                     </div>
                     <div>
                         <p className="text-lg font-black text-slate-700 uppercase leading-none">{job.company}</p>
-                        <p className="text-emerald-500 text-xs font-bold">Entreprise vérifiée</p>
+                        <p className="text-emerald-500 text-xs font-bold">
+                          {job.isScraped ? "Source : MinaJobs" : "Entreprise vérifiée"}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -198,7 +229,7 @@ export function JobDetails() {
       {/* Floating Action Bar */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-50">
         <div className="bg-white/80 backdrop-blur-xl border border-white shadow-2xl p-4 rounded-[2.5rem] flex items-center gap-4">
-          {hasApplied ? (
+          {hasApplied && !job.isScraped ? (
             <div className="w-full bg-emerald-50 text-emerald-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3">
                <UserCheck size={20} /> CANDIDATURE ENVOYÉE
             </div>
@@ -209,9 +240,19 @@ export function JobDetails() {
           ) : (
             <button
                 onClick={handleApply}
-                className="w-full bg-blue-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-800 transition-all active:scale-95"
+                className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-2 transition-all active:scale-95 ${
+                  job.isScraped 
+                    ? "bg-amber-500 text-white shadow-amber-200 hover:bg-amber-600" 
+                    : "bg-blue-700 text-white shadow-blue-200 hover:bg-blue-800"
+                }`}
             >
-                Postuler maintenant
+                {job.isScraped ? (
+                  <>
+                    Postuler sur le site source <ExternalLink size={18} />
+                  </>
+                ) : (
+                  "Postuler maintenant"
+                )}
             </button>
           )}
         </div>

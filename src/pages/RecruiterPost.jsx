@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Building, MapPin, FileText, Briefcase, PlusCircle, Trash2, CheckCircle2, DollarSign, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom'; // Ajout de useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore'; // Ajout de doc et updateDoc
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
-const CAMEROON_CITIES = ["Douala", "Yaoundé", "Garoua", "Maroua", "Bafoussam", "Bamenda", "Ngaoundéré", "Nkongsamba", "Kribi", "Limbe"];
+// Liste standardisée identique au profil pour un matching parfait
+const CAMEROON_CITIES = [
+  "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
+  "Bamenda", "Ngaoundéré", "Buea", "Bertoua", "Ebolowa", 
+  "Kribi", "Limbe", "Dschang", "Foumban"
+];
 
 export function RecruiterPost() {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
 
-  // On récupère l'offre à modifier si elle existe dans le "state" de navigation
   const editJob = location.state?.editJob;
 
   const [formData, setFormData] = useState({
     title: '',
     company: '',
-    city: 'Douala',
+    city: 'Yaoundé',
     type: 'CDI',
     salary: '',
     description: '',
@@ -26,13 +30,12 @@ export function RecruiterPost() {
     profile: ['']
   });
 
-  // Remplir le formulaire si on est en mode modification
   useEffect(() => {
     if (editJob) {
       setFormData({
         title: editJob.title || '',
         company: editJob.company || '',
-        city: editJob.city || 'Douala',
+        city: editJob.city || 'Yaoundé',
         type: editJob.type || 'CDI',
         salary: editJob.salary || '',
         description: editJob.description || '',
@@ -63,12 +66,10 @@ export function RecruiterPost() {
       };
 
       if (editJob) {
-        // --- LOGIQUE DE MODIFICATION ---
         const jobRef = doc(db, "jobs", editJob.id);
         await updateDoc(jobRef, payload);
         toast.success('Offre mise à jour avec succès !');
       } else {
-        // --- LOGIQUE DE CRÉATION ---
         await addDoc(collection(db, "jobs"), {
           ...payload,
           status: 'open',
@@ -206,7 +207,7 @@ export function RecruiterPost() {
 
           <div className="flex flex-col md:flex-row gap-4">
             <button type="submit" disabled={loading} className="flex-[2] bg-blue-700 text-white py-5 rounded-[2rem] font-black text-lg shadow-2xl shadow-blue-200 hover:bg-blue-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-              <CheckCircle2 size={24} /> {loading ? "Mise à jour..." : (editJob ? "Enregistrer les modifications" : "Publier l'annonce")}
+              <CheckCircle2 size={24} /> {loading ? "Enregistrement..." : (editJob ? "Enregistrer les modifications" : "Publier l'annonce")}
             </button>
             <button type="button" onClick={() => navigate('/DashboardRecruiter')} className="flex-1 px-8 bg-white border border-slate-200 text-slate-500 font-black rounded-[2rem] hover:bg-slate-50 transition-colors uppercase text-sm">
               Annuler

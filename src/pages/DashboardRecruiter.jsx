@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Briefcase, User, CheckCircle, XCircle, ExternalLink, PlusCircle, LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, Eye } from 'lucide-react'; // Icônes ajoutées
+import { Briefcase, User, CheckCircle, XCircle, ExternalLink, PlusCircle, LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, Eye } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore'; // deleteDoc ajouté
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore'; 
 import { toast } from 'sonner';
 
 export function DashboardRecruiter() {
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
-  const [myJobs, setMyJobs] = useState([]); // État pour tes propres annonces
+  const [myJobs, setMyJobs] = useState([]); 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,13 +18,11 @@ export function DashboardRecruiter() {
       return;
     }
 
-    // 1. Écouter les candidatures
     const qApps = query(
       collection(db, "applications"), 
       where("recruiterId", "==", user.uid)
     );
 
-    // 2. Écouter tes propres annonces publiées
     const qJobs = query(
       collection(db, "jobs"),
       where("recruiterId", "==", user.uid)
@@ -47,7 +45,6 @@ export function DashboardRecruiter() {
     };
   }, [navigate]);
 
-  // NOUVEAU : Supprimer une offre
   const handleDeleteJob = async (jobId) => {
     if (window.confirm("Es-tu sûr de vouloir supprimer cette annonce définitivement ?")) {
       try {
@@ -63,9 +60,9 @@ export function DashboardRecruiter() {
     try {
       const appRef = doc(db, "applications", appId);
       await updateDoc(appRef, { status: newStatus });
-      toast.success(`Candidat ${newStatus === 'retenu' ? 'accepté' : 'refusé'}`);
+      toast.success(`Candidat ${newStatus === 'retenu' ? 'accepté' : 'refusé'} avec succès !`);
     } catch (error) {
-      toast.error("Erreur de mise à jour");
+      toast.error("Erreur de mise à jour du statut");
     }
   };
 
@@ -93,7 +90,7 @@ export function DashboardRecruiter() {
             <div>
               <h1 className="text-2xl font-black text-slate-800 tracking-tighter uppercase">Mon Espace</h1>
               <p className="text-slate-400 font-bold text-sm uppercase tracking-widest flex items-center gap-2">
-                Recruteur <span className="w-1 h-1 bg-slate-300 rounded-full"></span> {myJobs.length} annonces actives
+                 Recruteur <span className="w-1 h-1 bg-slate-300 rounded-full"></span> {myJobs.length} annonces actives
               </p>
             </div>
           </div>
@@ -124,7 +121,7 @@ export function DashboardRecruiter() {
             </div>
         </div>
 
-        {/* SECTION NOUVELLE : MES ANNONCES PUBLIÉES */}
+        {/* SECTION MES ANNONCES PUBLIÉES */}
         <h2 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2 uppercase tracking-tighter">
             <Briefcase className="text-blue-600" size={20} /> Mes Annonces
         </h2>

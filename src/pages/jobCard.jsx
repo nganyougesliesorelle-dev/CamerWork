@@ -7,8 +7,8 @@ export function JobCard({ job, onClick }) {
   const getTypeColor = (type) => {
     switch (type) {
       case 'CDI': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'CDD': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Stage': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'CDD': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'Stage': return 'bg-blue-100 text-blue-700 border-blue-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -41,7 +41,7 @@ export function JobCard({ job, onClick }) {
         <div className="flex flex-wrap items-center gap-4 mt-2">
           <div className="flex items-center gap-1.5 text-slate-500 text-sm">
             <MapPin className="w-4 h-4 text-blue-500" />
-            <span>{job.location}, {job.city}</span>
+            <span>{job.city}</span>
           </div>
           
           {/* AFFICHAGE DU SALAIRE ICI */}

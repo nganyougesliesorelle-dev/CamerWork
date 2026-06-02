@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle } from 'lucide-react'; // Icônes ajoutées
+import { User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle } from 'lucide-react'; 
 import { useNavigate, useParams } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'; // Imports Firestore ajoutés
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'; 
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { toast } from 'sonner';
-import { uploadCV } from '../firebase/authService'; // Import de notre nouvelle fonction
+import { uploadCV } from '../firebase/authService'; 
+
+// Liste standardisée des villes pour un matching parfait
+const CAMEROON_CITIES = [
+  "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
+  "Bamenda", "Ngaoundéré", "Buea", "Bertoua", "Ebolowa", 
+  "Kribi", "Limbe", "Dschang", "Foumban"
+];
 
 const CustomBadge = ({ children, className }) => (
   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${className}`}>
@@ -21,8 +28,8 @@ export function Profile() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [newSkill, setNewSkill] = useState('');
-  const [applications, setApplications] = useState([]); // Pour l'historique
-  const [uploading, setUploading] = useState(false); // État d'upload
+  const [applications, setApplications] = useState([]); 
+  const [uploading, setUploading] = useState(false); 
 
   const isMyProfile = !id || id === auth.currentUser?.uid;
 
@@ -37,7 +44,10 @@ export function Profile() {
       
       // Si c'est mon profil et que je suis candidat, on charge l'historique
       if (isMyProfile) {
-        fetchHistory(targetId);
+        const unsubscribeHistory = fetchHistory(targetId);
+        return () => {
+          unsubscribeHistory();
+        };
       }
     });
 
@@ -56,15 +66,40 @@ export function Profile() {
       }
     };
 
-    // Fonction pour récupérer l'historique en temps réel
+    // Fonction pour récupérer l'historique en temps réel avec notifications de statut
     const fetchHistory = (uid) => {
       const q = query(
         collection(db, "applications"),
         where("candidateId", "==", uid),
         orderBy("appliedAt", "desc")
       );
+
+      let isInitialLoad = true; 
+
       return onSnapshot(q, (snapshot) => {
-        setApplications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const updatedApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Déclencheur d'alertes en temps réel lors d'une modification par le recruteur
+        if (!isInitialLoad) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "modified") {
+              const appData = change.doc.data();
+              
+              if (appData.status === "retenu") {
+                toast.success(`🎉 Félicitations ! Votre candidature pour "${appData.jobTitle}" chez ${appData.company} a été retenue !`, {
+                  duration: 5000
+                });
+              } else if (appData.status === "refusé") {
+                toast.error(`💼 Des nouvelles pour "${appData.jobTitle}" (${appData.company}) : Votre candidature n'a pas été retenue.`, {
+                  duration: 5000
+                });
+              }
+            }
+          });
+        }
+
+        setApplications(updatedApps);
+        isInitialLoad = false; 
       });
     };
 
@@ -81,7 +116,7 @@ export function Profile() {
         phone: candidate.phone || "",
         skills: candidate.skills || [],
         location: candidate.location || "",
-        cvUrl: candidate.cvUrl || "" // On utilise cvUrl au lieu de cvLink
+        cvUrl: candidate.cvUrl || "" 
       });
       setIsEditing(false);
       toast.success('Profil mis à jour avec succès !');
@@ -90,7 +125,6 @@ export function Profile() {
     }
   };
 
-  // NOUVEAU : Gestion de l'upload de fichier
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -175,7 +209,7 @@ export function Profile() {
                 {isMyProfile && (
                   <button
                     onClick={() => setIsEditing(!isEditing)}
-                    className={`px-6 py-3 rounded-2xl font-black transition-all text-sm ${isEditing ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                    className={`px-6 py-3 rounded-2xl font-black transition-all text-sm ${isEditing ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-7 text-slate-700 hover:bg-slate-200'}`}
                   >
                     {isEditing ? 'Annuler' : 'Modifier le profil'}
                   </button>
@@ -192,6 +226,7 @@ export function Profile() {
                   <Phone className="w-5 h-5 text-blue-600" />
                   {isEditing ? (
                     <input 
+                       type="text"
                        value={candidate.phone || ''} 
                        onChange={(e) => setCandidate({...candidate, phone: e.target.value})}
                        className="bg-white border border-slate-200 px-3 py-1 rounded-lg outline-none text-sm font-bold w-full"
@@ -202,21 +237,25 @@ export function Profile() {
                   )}
                 </div>
 
+                {/* Localisation standardisée par liste déroulante */}
                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent">
                   <MapPin className="w-5 h-5 text-blue-600" />
                   {isEditing ? (
-                    <input 
+                    <select 
                        value={candidate.location || ''} 
                        onChange={(e) => setCandidate({...candidate, location: e.target.value})}
-                       className="bg-white border border-slate-200 px-3 py-1 rounded-lg outline-none text-sm font-bold w-full"
-                       placeholder="Ville (Ex: Douala)"
-                    />
+                       className="bg-white border border-slate-200 px-3 py-1 rounded-lg outline-none text-sm font-bold w-full cursor-pointer"
+                    >
+                      <option value="">Sélectionner une ville</option>
+                      {CAMEROON_CITIES.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
                   ) : (
-                    <span className="text-sm font-bold text-slate-600">{candidate.location || "Cameroun"}</span>
+                    <span className="text-sm font-bold text-slate-600">{candidate.location || "Non renseignée"}</span>
                   )}
                 </div>
 
-                {/* Zone CV modifiée pour l'upload réel */}
                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent">
                   <FileText className="w-5 h-5 text-blue-600" />
                   {isEditing ? (
@@ -297,7 +336,7 @@ export function Profile() {
           </div>
         )}
 
-        {/* NOUVEAU : Historique des Candidatures (Uniquement pour le propriétaire du profil candidat) */}
+        {/* Historique des Candidatures avec écouteur en temps réel */}
         {isMyProfile && candidate.role === 'candidate' && (
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
             <h2 className="text-xs font-black text-slate-400 mb-6 flex items-center gap-3 uppercase tracking-[0.2em]">
