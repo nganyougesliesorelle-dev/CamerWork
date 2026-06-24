@@ -9,6 +9,7 @@ import { Profile } from './pages/Profile'; // Assure-toi qu'il gère les deux mo
 import { DashboardRecruiter } from './pages/DashboardRecruiter';
 import { RecruiterPost } from './pages/RecruiterPost';
 import { JobDetails } from './pages/jobDetails';
+import { Chat } from './pages/Chat';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
 
         {/* 5. Redirection de sécurité */}
         <Route path="*" element={<Navigate to="/" />} />
+        <Route path="/chat/:chatId" element={<Chat />} />
       </Routes>
     </Router>
   );

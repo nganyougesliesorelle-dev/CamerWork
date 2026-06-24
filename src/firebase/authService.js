@@ -23,6 +23,7 @@ export const registerUser = async (email, password, role, fullName) => {
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       displayName: fullName,
+      name: fullName, // Doublé ici pour éviter les erreurs de lecture (name vs displayName)
       email: email,
       role: role, 
       createdAt: serverTimestamp(),
@@ -82,9 +83,9 @@ export const applyToJob = async (job, user) => {
       jobId: job.id,
       jobTitle: job.title,
       company: job.company,
-      recruiterId: job.recruiterId,
+      recruiterId: job.recruiterId || null,
       candidateId: user.uid,
-      candidateName: userData.displayName || user.displayName || "Candidat",
+      candidateName: userData.displayName || userData.name || user.displayName || "Candidat",
       candidateEmail: user.email,
       status: "pending",
       appliedAt: serverTimestamp(),
@@ -94,6 +95,61 @@ export const applyToJob = async (job, user) => {
   } catch (error) {
     console.error("Erreur Application:", error);
     return { success: false, error: "Une erreur est survenue lors de l'envoi." };
+  }
+};
+
+/**
+ * 4.B METTRE À JOUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
+ * Appelé quand le recruteur clique sur "Retenir" ou "Refuser"
+ */
+export const updateApplicationStatus = async (applicationId, candidateId, jobTitle, companyName, newStatus, recruiterId) => {
+  try {
+    // 1. Mettre à jour le statut dans la collection applications
+    await updateDoc(doc(db, "applications", applicationId), {
+      status: newStatus
+    });
+
+    // 2. Créer les textes de notification personnalisés et le chat automatique
+    let titleNotification = "";
+    let messageNotification = "";
+
+    if (newStatus === "accepted") {
+      titleNotification = "Candidature retenue ! 🎉";
+      messageNotification = `Félicitations ! L'entreprise ${companyName} a retenu ton profil pour le poste de : ${jobTitle}. Un salon de discussion a été ouvert pour votre pré-entretien.`;
+
+      // CRÉATION DU SALON DE CHAT AUTOMATIQUE
+      const chatId = `${recruiterId}_${candidateId}_${applicationId}`;
+      await setDoc(doc(db, "chats", chatId), {
+        chatId: chatId,
+        recruiterId: recruiterId,
+        candidateId: candidateId,
+        jobTitle: jobTitle,
+        companyName: companyName,
+        createdAt: serverTimestamp(),
+        lastMessage: "Salon de discussion ouvert pour le pré-entretien.",
+        lastMessageAt: serverTimestamp()
+      });
+    } else if (newStatus === "rejected") {
+      titleNotification = "Mise à jour de candidature";
+      messageNotification = `L'entreprise ${companyName} a clôturé l'étude des profils pour le poste de : ${jobTitle}.`;
+    }
+
+    // 3. Envoyer la notification directement à l'étudiant
+    if (titleNotification) {
+      await addDoc(collection(db, "notifications"), {
+        userId: candidateId, // L'étudiant reçoit le signal
+        title: titleNotification,
+        message: messageNotification,
+        type: "status_update",
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Erreur Changement Statut / Chat:", error);
+    return { success: false, error: error.message };
   }
 };
 

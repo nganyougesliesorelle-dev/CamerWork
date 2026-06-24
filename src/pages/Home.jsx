@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { registerUser, loginUser, resetPassword } from '../firebase/authService'; 
 import { auth } from '../firebase/firebaseConfig'; 
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Building2, ArrowRight, Info } from 'lucide-react';
+import { Mail, Lock, User, Building2, ArrowRight, Info, CheckCircle } from 'lucide-react';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -15,15 +15,22 @@ const Home = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Nouvel état pour gérer la double authentification par e-mail
+  const [isWaitingVerification, setIsWaitingVerification] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && !loading) {
-        // Optionnel : Redirection automatique si déjà connecté
+        // Si l'utilisateur est connecté mais que son email n'est pas encore vérifié,
+        // on le maintient sur l'écran de vérification.
+        if (!user.emailVerified) {
+          setIsWaitingVerification(true);
+        }
       }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, [loading]);
 
   const handleForgotPass = async () => {
     if (!email) {
@@ -33,6 +40,32 @@ const Home = () => {
     const result = await resetPassword(email.trim());
     if (result.success) toast.success("Email de réinitialisation envoyé !");
     else toast.error(result.error);
+  };
+
+  // Permet à l'utilisateur de vérifier manuellement s'il a cliqué sur le lien
+  const handleCheckVerification = async () => {
+    setLoading(true);
+    try {
+      await auth.currentUser?.reload();
+      const user = auth.currentUser;
+      
+      if (user?.emailVerified) {
+        toast.success("Compte validé avec succès ! Bienvenue.");
+        setIsWaitingVerification(false);
+        // Lecture du rôle pour la redirection finale
+        if (role === 'recruiter') {
+          navigate('/DashboardRecruiter');
+        } else {
+          navigate('/offres');
+        }
+      } else {
+        toast.error("Votre adresse e-mail n'a pas encore été validée. Vérifiez votre boîte de réception.");
+      }
+    } catch (err) {
+      toast.error("Erreur lors de la vérification.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -55,8 +88,15 @@ const Home = () => {
       if (isLoginMode) {
         const result = await loginUser(cleanEmail, password);
         if (result.success) {
+          // Vérification double facteur au login
+          if (!auth.currentUser.emailVerified) {
+            toast.info("Veuillez valider votre adresse e-mail avant de vous connecter.");
+            setIsWaitingVerification(true);
+            setLoading(false);
+            return;
+          }
+
           toast.success("Content de vous revoir !");
-          // CORRECTION : Vérifie que le chemin correspond à ton App.js
           if (result.role === 'recruiter') {
             navigate('/DashboardRecruiter'); 
           } else {
@@ -68,12 +108,11 @@ const Home = () => {
       } else {
         const result = await registerUser(cleanEmail, password, role, fullName);
         if (result.success) {
-          toast.success("Bienvenue sur CamerWork !");
-          // CORRECTION : Utilisation directe de la variable 'role' de l'état
-          if (role === 'recruiter') {
-            navigate('/DashboardRecruiter');
-          } else {
-            navigate('/offres');
+          // Envoi immédiat de l'email de validation
+          if (auth.currentUser) {
+            await sendEmailVerification(auth.currentUser);
+            toast.success("Un e-mail de confirmation vous a été envoyé !");
+            setIsWaitingVerification(true);
           }
         } else {
           toast.error(result.error || "Erreur lors de l'inscription");
@@ -86,6 +125,47 @@ const Home = () => {
       setLoading(false);
     }
   };
+
+  // ÉCRAN INTERMÉDIAIRE : DOUBLE FACTEUR / EN ATTENTE DE CLIC SUR LE LIEN EMAIL
+  if (isWaitingVerification) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8 font-sans">
+        <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center space-y-6">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <Mail size={32} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Confirmez votre e-mail</h2>
+            <p className="text-sm text-slate-500 font-medium">
+              Un lien d'activation sécurisé a été envoyé à l'adresse <strong className="text-slate-700">{email || auth.currentUser?.email}</strong>.
+            </p>
+          </div>
+          <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 text-left flex gap-3 text-xs text-blue-800 font-medium leading-relaxed">
+            <span className="text-blue-600 flex-shrink-0 mt-0.5"><Info size={14} /></span>
+            <p>Cliquez sur le lien contenu dans le message, puis revenez sur cette page pour valider l'accès.</p>
+          </div>
+          <button 
+            type="button" 
+            disabled={loading}
+            onClick={handleCheckVerification} 
+            className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-colors disabled:bg-slate-300"
+          >
+            {loading ? "Vérification..." : "J'ai validé mon e-mail"} <CheckCircle size={18} />
+          </button>
+          <button 
+            type="button" 
+            onClick={() => {
+              auth.signOut();
+              setIsWaitingVerification(false);
+            }} 
+            className="text-xs text-slate-400 font-bold hover:text-blue-700 transition-colors uppercase tracking-widest"
+          >
+            Retourner à l'accueil
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8 font-sans">
