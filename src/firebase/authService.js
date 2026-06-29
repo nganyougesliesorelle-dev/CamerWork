@@ -3,50 +3,69 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
-  updateProfile 
+  updateProfile,
+  sendEmailVerification // AJOUTÉ : Requis pour envoyer le mail de confirmation
 } from "firebase/auth";
 import { 
-  doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc 
+  doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Ajout pour les fichiers
 
 /**
- * 1. INSCRIPTION
+ * 1. INSCRIPTION + ENVOI DU MAIL DE CONFIRMATION
  */
 export const registerUser = async (email, password, role, fullName) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
+    // 1. Mettre à jour le profil de l'utilisateur avec son nom
     await updateProfile(user, { displayName: fullName });
 
+    // 2. ENVOI DU MAIL DE CONFIRMATION (Nouveau)
+    await sendEmailVerification(user);
+
+    // 3. Création du document utilisateur dans Firestore
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       displayName: fullName,
       name: fullName, // Doublé ici pour éviter les erreurs de lecture (name vs displayName)
       email: email,
       role: role, 
+      emailVerified: false, // Initialisé à faux tant qu'il n'a pas cliqué sur le lien
       createdAt: serverTimestamp(),
     });
 
-    return { success: true, user, role };
+    return { success: true, user, role, msg: "Un e-mail de confirmation vous a été envoyé." };
   } catch (error) {
     console.error("Erreur Inscription:", error.code);
-    return { success: false, error: error.message };
+    let message = error.message;
+    if (error.code === 'auth/email-already-in-use') message = "Cet e-mail est déjà utilisé.";
+    return { success: false, error: message };
   }
 };
 
 /**
- * 2. CONNEXION
+ * 2. CONNEXION (Vérifie si l'e-mail est validé avant de laisser entrer)
  */
 export const loginUser = async (email, password) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
+    // Bloquer la connexion si l'e-mail n'est pas encore validé
+    if (!user.emailVerified) {
+      return { 
+        success: false, 
+        error: "Veuillez valider votre adresse e-mail en cliquant sur le lien envoyé dans votre boîte de réception avant de vous connecter." 
+      };
+    }
+    
     const userDoc = await getDoc(doc(db, "users", user.uid));
     
     if (userDoc.exists()) {
+      // Mettre à jour le statut dans la base de données
+      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
       return { success: true, user, role: userDoc.data().role };
     }
     return { success: false, error: "Profil utilisateur inexistant dans la base." };
@@ -100,16 +119,13 @@ export const applyToJob = async (job, user) => {
 
 /**
  * 4.B METTRE À JOUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
- * Appelé quand le recruteur clique sur "Retenir" ou "Refuser"
  */
 export const updateApplicationStatus = async (applicationId, candidateId, jobTitle, companyName, newStatus, recruiterId) => {
   try {
-    // 1. Mettre à jour le statut dans la collection applications
     await updateDoc(doc(db, "applications", applicationId), {
       status: newStatus
     });
 
-    // 2. Créer les textes de notification personnalisés et le chat automatique
     let titleNotification = "";
     let messageNotification = "";
 
@@ -117,7 +133,6 @@ export const updateApplicationStatus = async (applicationId, candidateId, jobTit
       titleNotification = "Candidature retenue ! 🎉";
       messageNotification = `Félicitations ! L'entreprise ${companyName} a retenu ton profil pour le poste de : ${jobTitle}. Un salon de discussion a été ouvert pour votre pré-entretien.`;
 
-      // CRÉATION DU SALON DE CHAT AUTOMATIQUE
       const chatId = `${recruiterId}_${candidateId}_${applicationId}`;
       await setDoc(doc(db, "chats", chatId), {
         chatId: chatId,
@@ -134,10 +149,9 @@ export const updateApplicationStatus = async (applicationId, candidateId, jobTit
       messageNotification = `L'entreprise ${companyName} a clôturé l'étude des profils pour le poste de : ${jobTitle}.`;
     }
 
-    // 3. Envoyer la notification directement à l'étudiant
     if (titleNotification) {
       await addDoc(collection(db, "notifications"), {
-        userId: candidateId, // L'étudiant reçoit le signal
+        userId: candidateId,
         title: titleNotification,
         message: messageNotification,
         type: "status_update",
@@ -208,5 +222,113 @@ export const sendMessage = async (chatId, senderId, text) => {
     return { success: true };
   } catch (error) {
     return { success: false };
+  }
+};
+
+/**
+ * ==========================================
+ * 🔥 MOTEUR DE RECOMMANDATION DYNAMIQUE (CAMERWORK)
+ * ==========================================
+ */
+
+/**
+ * Analyse une offre par rapport au profil d'un candidat (Calcul de Gap et Rentabilité)
+ */
+export const analyzeOpportunity = (candidate, job) => {
+  // Extraction propre des compétences du candidat (depuis son profil)
+  const candidateSkills = (candidate.skills || []).map(s => s.trim().toLowerCase());
+  // Les compétences requises par l'offre
+  const jobSkills = (job.skills || []).map(s => s.trim().toLowerCase());
+
+  // 1. CALCUL DE L'INDICE DE RENTABILITÉ FINANCIÈRE
+  let profitabilityScore = 0;
+  const salaryValue = job.salary ? Number(job.salary.toString().replace(/\s/g, '')) : 0;
+  
+  if (salaryValue > 0) {
+    if (salaryValue >= 200000) profitabilityScore += 60; // Excellent niveau pour les jeunes diplômés
+    else if (salaryValue >= 100000) profitabilityScore += 40;
+    else profitabilityScore += 20;
+  }
+  
+  // Avantage additionnel basé sur le type de contrat attractif
+  if (job.type === "CDI") profitabilityScore += 40;
+  if (job.type === "CDD" || job.type === "Freelance") profitabilityScore += 25;
+  if (job.type === "Stage") profitabilityScore += 15;
+
+  if (profitabilityScore > 100) profitabilityScore = 100;
+
+  // 2. DÉTECTION DU SKILL GAP (Compétences manquantes)
+  const missingSkills = (job.skills || []).filter(
+    skill => !candidateSkills.includes(skill.trim().toLowerCase())
+  );
+  
+  const matchedSkillsCount = jobSkills.length - missingSkills.length;
+  const technicalMatchPercent = jobSkills.length > 0 
+    ? Math.round((matchedSkillsCount / jobSkills.length) * 100) 
+    : 100;
+
+  // 3. RECOMMANDATION CRITÈRE GÉOGRAPHIQUE
+  const sameCity = candidate.city?.trim().toLowerCase() === job.city?.trim().toLowerCase();
+
+  // 4. COMBINAISON POUR UN MATCHING PROACTIF
+  // On mélange : Score technique (50%), Rentabilité (40%), Localisation (10%)
+  const globalScore = Math.round(
+    (technicalMatchPercent * 0.5) + (profitabilityScore * 0.4) + (sameCity ? 10 : 0)
+  );
+
+  // Décision d'envoi d'alerte : si globalScore correct OU si l'offre est ultra-rentable financièrement
+  const shouldNotify = globalScore >= 50 || profitabilityScore >= 75;
+
+  return {
+    globalScore,
+    profitabilityScore,
+    technicalMatchPercent,
+    missingSkills,
+    shouldNotify
+  };
+};
+
+/**
+ * Scanne tous les candidats pour leur distribuer les alertes personnalisées après publication
+ */
+export const dispatchJobOpportunities = async (newJob) => {
+  try {
+    const usersSnapshot = await getDocs(collection(db, "users"));
+    const candidates = [];
+    
+    usersSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.role === "candidate" || data.role === "student" || data.role === "candidat") {
+        candidates.push({ id: docSnap.id, ...data });
+      }
+    });
+
+    for (const candidate of candidates) {
+      const analysis = analyzeOpportunity(candidate, newJob);
+
+      if (analysis.shouldNotify) {
+        let pushMessage = "";
+        
+        if (analysis.missingSkills.length > 0) {
+          pushMessage = `Une opportunité à haute rentabilité financière (${newJob.salary ? newJob.salary + ' FCFA' : 'Attractif'}) est disponible chez ${newJob.company} ! Il te manque les compétences [ ${analysis.missingSkills.join(", ")} ] pour valider ton match. Mets ton CV à niveau pour postuler !`;
+        } else {
+          pushMessage = `L'offre idéale vient d'être publiée par ${newJob.company} (${newJob.title}). Ton profil coche toutes les cases avec un score de rentabilité optimal. Postule vite !`;
+        }
+
+        // Ajout direct dans la collection de notifications de l'utilisateur
+        await addDoc(collection(db, "notifications"), {
+          userId: candidate.id,
+          title: "Nouvelle opportunité de carrière ! 🚀",
+          message: pushMessage,
+          type: "opportunity_boost",
+          jobId: newJob.id,
+          globalScore: analysis.globalScore,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors de la distribution proactive des offres:", error);
   }
 };

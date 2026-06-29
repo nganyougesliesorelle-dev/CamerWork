@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Briefcase, User, CheckCircle, XCircle, ExternalLink, PlusCircle, LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, Eye, MessageSquare } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { updateApplicationStatus } from '../firebase/authService'; // Nouvelle fonction connectée
+import { updateApplicationStatus } from '../firebase/authService';
 import { collection, query, where, onSnapshot, doc, deleteDoc } from 'firebase/firestore'; 
 import { toast } from 'sonner';
 
@@ -62,7 +62,6 @@ export function DashboardRecruiter() {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Traduction automatique pour correspondre aux statuts gérés par la fonction de notification
       const apiStatus = newStatus === 'retenu' ? 'accepted' : 'rejected';
       
       const result = await updateApplicationStatus(
@@ -71,7 +70,7 @@ export function DashboardRecruiter() {
         app.jobTitle,
         app.company || "Recruteur CamerWork",
         apiStatus,
-        user.uid // AJOUT : ID du recruteur requis pour la création du salon de chat unique
+        user.uid
       );
 
       if (result.success) {
@@ -98,7 +97,6 @@ export function DashboardRecruiter() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      {/* HEADER LUXE */}
       <div className="bg-white border-b border-slate-100 px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
@@ -123,7 +121,6 @@ export function DashboardRecruiter() {
       </div>
 
       <div className="max-w-6xl mx-auto p-6">
-        {/* STATS RAPIDES */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Candidats</p>
@@ -139,7 +136,6 @@ export function DashboardRecruiter() {
             </div>
         </div>
 
-        {/* SECTION MES ANNONCES PUBLIÉES */}
         <h2 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2 uppercase tracking-tighter">
             <Briefcase className="text-blue-600" size={20} /> Mes Annonces
         </h2>
@@ -173,7 +169,6 @@ export function DashboardRecruiter() {
           )}
         </div>
 
-        {/* LISTE DES CANDIDATS */}
         <h2 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2 uppercase tracking-tighter">
             <Clock className="text-blue-600" size={20} /> Candidatures Récentes
         </h2>
@@ -207,7 +202,6 @@ export function DashboardRecruiter() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  {/* BOUTON CHAT DÉDIÉ : Visible uniquement si le candidat est retenu / accepté */}
                   {(app.status === 'retenu' || app.status === 'accepted') && (
                     <button 
                       onClick={() => navigate(`/chat/${auth.currentUser?.uid}_${app.candidateId}_${app.id}`)}

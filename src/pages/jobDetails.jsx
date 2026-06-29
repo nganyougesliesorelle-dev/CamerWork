@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck, ExternalLink } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck, ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
@@ -23,6 +23,10 @@ export function JobDetails() {
   const [loading, setLoading] = useState(true);
   const [hasApplied, setHasApplied] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  
+  // États pour le module de coaching intelligent
+  const [missingSkills, setMissingSkills] = useState([]);
+  const [checkingSkills, setCheckingSkills] = useState(false);
 
   useEffect(() => {
     const fetchJobAndStatus = async () => {
@@ -40,7 +44,39 @@ export function JobDetails() {
           if (user) {
             // Récupérer le rôle via la collection users
             const userSnap = await getDoc(doc(db, "users", user.uid));
-            if (userSnap.exists()) setUserRole(userSnap.data().role);
+            if (userSnap.exists()) {
+              const userData = userSnap.data();
+              setUserRole(userData.role);
+              
+              // --- LOGIQUE DU COACH : ANALYSE DES COMPÉTENCES ---
+              if (userData.role !== 'recruiter' && jobData.profile) {
+                setCheckingSkills(true);
+                // On récupère les compétences de l'étudiant (tableau nettoyé en minuscules)
+                const userSkills = Array.isArray(userData.skills) 
+                  ? userData.skills.map(s => s.toLowerCase().trim()) 
+                  : [];
+                
+                // Moteur de matching basique : on scanne le profil requis à la recherche de mots clés
+                const detectedMissing = [];
+                jobData.profile.forEach(reqText => {
+                  const reqLower = reqText.toLowerCase();
+                  
+                  // Liste de compétences types à détecter (extensible selon tes besoins)
+                  const technicalSkillsPool = ['react', 'spring boot', 'node', 'express', 'firebase', 'tailwind', 'sql', 'postgis', 'git', 'figma', 'canva', 'java', 'javascript', 'python', 'php', 'flutter'];
+                  
+                  technicalSkillsPool.forEach(skill => {
+                    if (reqLower.includes(skill) && !userSkills.includes(skill)) {
+                      if (!detectedMissing.includes(skill)) {
+                        detectedMissing.push(skill);
+                      }
+                    }
+                  });
+                });
+                
+                setMissingSkills(detectedMissing);
+                setCheckingSkills(false);
+              }
+            }
 
             // Vérifier si une candidature existe déjà
             const q = query(
@@ -66,13 +102,11 @@ export function JobDetails() {
   }, [id, navigate]);
 
   const handleApply = async () => {
-    // --- REDIRECTION POUR LES OFFRES SCRAPÉES ---
     if (job?.isScraped && job?.sourceUrl) {
       toast.info("Redirection vers le site partenaire...");
       window.open(job.sourceUrl, "_blank", "noopener,noreferrer");
-      return; // On stoppe l'exécution ici pour éviter l'envoi en interne
+      return; 
     }
-    // --------------------------------------------
 
     const user = auth.currentUser;
     
@@ -95,7 +129,6 @@ export function JobDetails() {
           description: `Ton profil est maintenant chez ${job?.company}.`,
         });
 
-        // --- AJOUT DE LA NOTIFICATION POUR LE RECRUTEUR ---
         const userSnap = await getDoc(doc(db, "users", user.uid));
         const candidateName = userSnap.exists() ? userSnap.data().name : "Un candidat";
 
@@ -150,7 +183,6 @@ export function JobDetails() {
                     <span className="flex items-center gap-1 text-slate-400 text-[10px] font-black uppercase">
                         <MapPin size={12} /> {job.city}
                     </span>
-                    {/* Badge d'indication de la source pour la transparence */}
                     {job.isScraped && (
                       <span className="px-3 py-1 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider">
                         Partenaire Externe
@@ -181,6 +213,43 @@ export function JobDetails() {
                 </div>
             )}
           </div>
+
+          {/* --- MODULE INTEGRÉ : ENCADRÉ COACH CAMERWORK --- */}
+          {!checkingSkills && missingSkills.length > 0 && !hasApplied && userRole !== 'recruiter' && (
+            <div className="mt-8 bg-gradient-to-br from-slate-900 to-blue-950 rounded-[2rem] p-6 md:p-8 text-white shadow-xl relative overflow-hidden border border-blue-900">
+              <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 text-white font-black text-9xl select-none">
+                AI
+              </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-wider">
+                    <Sparkles size={16} /> Coach CamerWork
+                  </div>
+                  <h3 className="text-xl font-black leading-tight tracking-tight uppercase">
+                    Maximise tes chances pour ce poste
+                  </h3>
+                  <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-xl">
+                    Le recruteur recherche idéalement des profils maîtrisant ces technologies. S'ils font partie de ton parcours académique ou de tes projets, rajoute-les pour passer au-dessus de la pile :
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {missingSkills.map((skill, index) => (
+                      <span key={index} className="px-3 py-1 bg-white/10 text-amber-300 rounded-xl text-xs font-black uppercase border border-white/5">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => navigate('/mon-profil')} 
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-900 text-sm font-black uppercase px-6 py-4 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap self-start md:self-center shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                >
+                  Optimiser mon profil <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+          {/* ----------------------------------------------- */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 border-t border-slate-50 pt-12">
             {/* Left: Description & Missions */}

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { dispatchJobOpportunities } from '../firebase/authService'; // Ajout de la fonction de matching
 
 // Liste standardisée identique au profil pour un matching parfait
 const CAMEROON_CITIES = [
@@ -57,8 +58,13 @@ export function RecruiterPost() {
       const cleanMissions = formData.missions.filter(m => m.trim() !== '');
       const cleanProfile = formData.profile.filter(p => p.trim() !== '');
 
+      // Déduction dynamique du tableau de compétences (skills) pour le moteur de matching
+      const extractedSkills = cleanProfile.map(item => item.trim());
+
       const payload = {
         ...formData,
+        salary: formData.salary ? Number(formData.salary.toString().replace(/\s/g, '')) : 0, // conversion numérique pour le calcul de rentabilité
+        skills: extractedSkills, // Ajout du tableau plat de compétences pour l'algorithme
         missions: cleanMissions,
         profile: cleanProfile,
         recruiterId: user.uid,
@@ -68,14 +74,22 @@ export function RecruiterPost() {
       if (editJob) {
         const jobRef = doc(db, "jobs", editJob.id);
         await updateDoc(jobRef, payload);
-        toast.success('Offre mise à jour avec succès !');
+        
+        // Déclenchement du matching après mise à jour
+        await dispatchJobOpportunities({ id: editJob.id, ...payload });
+        
+        toast.success('Offre mise à jour et redistribuée aux talents !');
       } else {
-        await addDoc(collection(db, "jobs"), {
+        const docRef = await addDoc(collection(db, "jobs"), {
           ...payload,
           status: 'open',
           createdAt: serverTimestamp(),
         });
-        toast.success('Offre publiée avec succès !');
+        
+        // Déclenchement du matching après création d'une nouvelle offre
+        await dispatchJobOpportunities({ id: docRef.id, ...payload });
+        
+        toast.success('Offre publiée et envoyée aux talents correspondants !');
       }
 
       setTimeout(() => navigate('/DashboardRecruiter'), 1500);
@@ -191,14 +205,14 @@ export function RecruiterPost() {
 
             <div>
                 <div className="flex items-center justify-between mb-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">Profil recherché</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Profil recherché (Compétences requises)</label>
                     <button type="button" onClick={() => addField('profile')} className="text-emerald-600 flex items-center gap-1 text-[10px] font-black hover:scale-105 transition-all bg-emerald-50 px-3 py-1 rounded-full">
                         <PlusCircle size={14} /> AJOUTER
                     </button>
                 </div>
                 {formData.profile.map((p, i) => (
                 <div key={i} className="flex gap-2 mb-3">
-                    <input className="flex-1 p-4 bg-slate-50 border-none rounded-2xl outline-none font-medium text-sm text-slate-700" value={p} onChange={(e) => updateField('profile', i, e.target.value)} placeholder="Compétences, diplômes..." />
+                    <input className="flex-1 p-4 bg-slate-50 border-none rounded-2xl outline-none font-medium text-sm text-slate-700" value={p} onChange={(e) => updateField('profile', i, e.target.value)} placeholder="ex: React, Java, Git, Figma..." />
                     <button type="button" onClick={() => removeField('profile', i)} className="text-red-400 hover:bg-red-50 p-2 rounded-xl transition-colors"><Trash2 size={20} /></button>
                 </div>
                 ))}
