@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "camerwork-1e3d0"
-  }
+    "default": "camerwork-1e3d0",
+    "y": "camerwork-1e3d0"
+  },
+  "targets": {},
+  "etags": {}
 }

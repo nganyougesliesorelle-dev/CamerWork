@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // Ajouté pour le CV et Chat
+import { getStorage } from "firebase/storage"; 
+import { getMessaging } from "firebase/messaging"; // Ajouté pour le build
 
 const firebaseConfig = {
   apiKey: "AIzaSyBxTb3bWqQCDlTGRG9B4XEE9ik9ZBjOkuQ",
@@ -16,4 +17,5 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app); // Exporté pour tes fonctionnalités d'upload
+export const storage = getStorage(app); 
+export const messaging = getMessaging(app); // Ajouté pour corriger l'erreur de notificationService

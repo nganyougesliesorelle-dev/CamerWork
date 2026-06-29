@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, MessageSquare, Briefcase, User, Building2, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,15 +25,47 @@ export function Chat() {
     }
     setCurrentUser(user);
 
-    // Récupérer les métadonnées du salon de discussion
+    // Récupérer les métadonnées du salon de discussion ou les initialiser si manquant
     const fetchChatInfo = async () => {
       try {
-        const chatDoc = await getDoc(doc(db, "chats", chatId));
+        const chatRef = doc(db, "chats", chatId);
+        const chatDoc = await getDoc(chatRef);
+        
         if (chatDoc.exists()) {
           setChatInfo(chatDoc.data());
         } else {
-          toast.error("Salon de discussion introuvable.");
-          navigate(-1);
+          // SÉCURITÉ : Si le document de chat brut n'existe pas encore, on extrait les IDs depuis l'URL du chatId
+          // Structure de ton URL : recruiterId_candidateId_applicationId
+          const parts = chatId.split('_');
+          if (parts.length >= 3) {
+            const [recruiterId, candidateId, applicationId] = parts;
+            
+            // On va chercher les détails directement dans la postulation correspondante
+            const appDoc = await getDoc(doc(db, "applications", applicationId));
+            if (appDoc.exists()) {
+              const appData = appDoc.data();
+              const initialChatData = {
+                companyName: appData.company || "Entreprise",
+                jobTitle: appData.jobTitle || "Poste",
+                recruiterId: recruiterId,
+                candidateId: candidateId,
+                applicationId: applicationId,
+                createdAt: serverTimestamp(),
+                lastMessage: "Salon de discussion initialisé.",
+                lastMessageAt: serverTimestamp()
+              };
+              
+              // On crée le salon directement pour que le candidat n'ait pas d'erreur 404
+              await setDoc(chatRef, initialChatData);
+              setChatInfo(initialChatData);
+            } else {
+              toast.error("Données de candidature introuvables.");
+              navigate(-1);
+            }
+          } else {
+            toast.error("Salon de discussion introuvable.");
+            navigate(-1);
+          }
         }
       } catch (error) {
         console.error("Erreur chat info:", error);
@@ -151,7 +183,7 @@ export function Chat() {
           </div>
         </div>
 
-        {/* LISTE DES MESSAGES DU COMPTE À REBOURS */}
+        {/* LISTE DES MESSAGES */}
         <div className="space-y-4 pt-4">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid;
@@ -186,7 +218,7 @@ export function Chat() {
             disabled={!newMessage.trim()}
             className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-100 text-white disabled:text-slate-400 p-4 rounded-2xl shadow-xl hover:shadow-blue-200 transition-all flex items-center justify-center active:scale-95"
           >
-            <Send size={20} />
+            <NavigaSendIcon />
           </button>
         </form>
       </div>
@@ -194,3 +226,6 @@ export function Chat() {
     </div>
   );
 }
+
+// Petit composant interne pour conserver l'icône sans doublon
+const NavigaSendIcon = () => <Send size={20} />;

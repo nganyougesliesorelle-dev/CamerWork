@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building, MapPin, FileText, Briefcase, PlusCircle, Trash2, CheckCircle2, DollarSign, ArrowLeft } from 'lucide-react';
+import { Building, MapPin, FileText, Briefcase, PlusCircle, Trash2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
@@ -26,6 +26,7 @@ export function RecruiterPost() {
     city: 'Yaoundé',
     type: 'CDI',
     salary: '',
+    period: 'Mensuel', // 'Mensuel' ou 'Annuel'
     description: '',
     missions: [''],
     profile: ['']
@@ -39,6 +40,7 @@ export function RecruiterPost() {
         city: editJob.city || 'Yaoundé',
         type: editJob.type || 'CDI',
         salary: editJob.salary || '',
+        period: editJob.period || 'Mensuel',
         description: editJob.description || '',
         missions: editJob.missions?.length > 0 ? editJob.missions : [''],
         profile: editJob.profile?.length > 0 ? editJob.profile : ['']
@@ -117,20 +119,21 @@ export function RecruiterPost() {
   
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
+      {/* Header ajusté pour le responsive mobile */}
       <div className="bg-slate-900 text-white py-14 px-6 relative overflow-hidden">
         <div className="max-w-4xl mx-auto relative z-10">
           <button onClick={() => navigate(-1)} className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-bold text-sm">
             <ArrowLeft size={18} /> RETOUR
           </button>
-          <div className="flex items-center gap-4">
-            <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20">
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-4">
+            <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20 shrink-0">
               <PlusCircle className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter">
+              <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter breakdown-words">
                 {editJob ? "Modifier l'offre" : "Créer une offre"}
               </h1>
-              <p className="text-slate-400 font-medium">
+              <p className="text-slate-400 font-medium text-sm md:text-base">
                 {editJob ? "Ajustez les détails de votre annonce." : "Trouvez les meilleurs profils du pays."}
               </p>
             </div>
@@ -173,11 +176,18 @@ export function RecruiterPost() {
                 </select>
               </div>
 
+              {/* Bloc Salaire Réagencé avec FCFA et Période (Mensuel/Annuel) */}
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Salaire mensuel (FCFA)</label>
-                <div className="relative">
-                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <input type="text" className="w-full p-4 pl-10 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800" placeholder="ex: 250 000" value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})} />
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Salaire ({formData.period.toLowerCase()})</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input type="text" className="w-full p-4 pr-16 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800" placeholder="ex: 250 000" value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})} />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">FCFA</span>
+                  </div>
+                  <select className="p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800 cursor-pointer" value={formData.period} onChange={(e) => setFormData({...formData, period: e.target.value})}>
+                    <option value="Mensuel">Mensuel</option>
+                    <option value="Annuel">Annuel</option>
+                  </select>
                 </div>
               </div>
             </div>
