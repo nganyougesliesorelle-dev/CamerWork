@@ -10,7 +10,7 @@ import { DashboardRecruiter } from './pages/DashboardRecruiter';
 import { RecruiterPost } from './pages/RecruiterPost';
 import { JobDetails } from './pages/jobDetails';
 import { Chat } from './pages/Chat';
-import { Notifications } from './components/Notifications'; // AJOUTÉ : Le centre d'alertes
+import { Notifications } from './composants/Notifications'; // AJOUTÉ : Le centre d'alertes
 
 function App() {
   return (
