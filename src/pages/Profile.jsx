@@ -1,38 +1,82 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle, MessageSquare } from 'lucide-react'; 
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, 
+  Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle, MessageSquare, 
+  Camera, Calendar, TrendingUp, Users, UserPlus, MessageCircle, ChevronRight, Settings, LogOut,
+  Image, FolderOpen, Trash2, Edit3, Building2, Sparkles, Globe,
+} from 'lucide-react'; 
 import { useNavigate, useParams } from 'react-router-dom';
-import { auth, db } from '../firebase/firebaseConfig';
+import { auth, db, storage } from '../firebase/firebaseConfig';
 import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'; 
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { toast } from 'sonner';
 import { uploadCV } from '../firebase/authService'; 
+import { calculateMatchingScore } from '../firebase/matchingEngine';
 import { requestNotificationPermission } from '../firebase/notificationService';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-// Liste standardisée des villes pour un matching parfait
 const CAMEROON_CITIES = [
   "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
   "Bamenda", "Ngaoundéré", "Buea", "Bertoua", "Ebolowa", 
   "Kribi", "Limbe", "Dschang", "Foumban"
 ];
 
-const CustomBadge = ({ children, className }) => (
-  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${className}`}>
-    {children}
-  </span>
-);
-
 export function Profile() {
   const { id } = useParams(); 
   const navigate = useNavigate();
+  const avatarInputRef = useRef(null);
+  const portfolioInputRef = useRef(null);
   
   const [candidate, setCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [newSkill, setNewSkill] = useState('');
   const [applications, setApplications] = useState([]); 
-  const [uploading, setUploading] = useState(false); 
+  const [uploading, setUploading] = useState(false);
+  // eslint-disable-next-line no-unused-vars
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
+  const [matchScores, setMatchScores] = useState({});
+  const candidateRef = useRef(null);
 
   const isMyProfile = !id || id === auth.currentUser?.uid;
+
+  // Calcul dynamique des stats du graphique à partir des candidatures réelles
+  const computeChartData = () => {
+    const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const postulations = Array(7).fill(0);
+    const recruteursSet = Array(7).fill(null).map(() => new Set());
+    
+    applications.forEach(app => {
+      if (app.appliedAt?.toDate) {
+        const d = app.appliedAt.toDate();
+        const dayIdx = (d.getDay() + 6) % 7; // dim=6, lun=0, ..., sam=5
+        postulations[dayIdx]++;
+        if (app.recruiterId) recruteursSet[dayIdx].add(app.recruiterId);
+      }
+    });
+    
+    const hasData = postulations.some(v => v > 0);
+    if (!hasData) {
+      // Fallback: données vides
+      return days.map(name => ({ name, Postulations: 0, Recruteurs: 0 }));
+    }
+    
+    return days.map((name, i) => ({
+      name,
+      Postulations: postulations[i],
+      Recruteurs: recruteursSet[i].size,
+    }));
+  };
+  
+  const statsData = computeChartData();
+
+  const suggestedProfiles = [
+    { id: '1', name: 'Jean Marc', role: 'Développeur Java', avatar: null },
+    { id: '2', name: 'Sorelle N.', role: 'UI/UX Designer', avatar: null },
+    { id: '3', name: 'Alain Tech', role: 'Recruteur - Orange', avatar: null },
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -43,13 +87,10 @@ export function Profile() {
       }
       fetchProfile(targetId);
       
-      // DEBUT DES MODIFICATIONS : Déclenchement automatique de la demande de permission
       if (user) {
         requestNotificationPermission(user.uid);
       }
-      // FIN DES MODIFICATIONS
 
-      // Si c'est mon profil, on charge l'historique sans bloquer sur une variante de string du rôle
       if (isMyProfile) {
         const unsubscribeHistory = fetchHistory(targetId);
         return () => {
@@ -63,7 +104,9 @@ export function Profile() {
         const docRef = doc(db, "users", targetId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setCandidate(docSnap.data());
+          const data = docSnap.data();
+          setCandidate(data);
+          candidateRef.current = data;
         }
       } catch (error) {
         console.error("Erreur profil:", error);
@@ -73,7 +116,6 @@ export function Profile() {
       }
     };
 
-    // Fonction pour récupérer l'historique en temps réel avec notifications de statut
     const fetchHistory = (uid) => {
       const q = query(
         collection(db, "applications"),
@@ -86,28 +128,36 @@ export function Profile() {
       return onSnapshot(q, (snapshot) => {
         const updatedApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // Déclencheur d'alertes en temps réel lors d'une modification par le recruteur
         if (!isInitialLoad) {
           snapshot.docChanges().forEach((change) => {
             if (change.type === "modified") {
               const appData = change.doc.data();
-              
-              // HARMONISATION : Synchronisation avec "accepted" et "rejected" d'authService
               if (appData.status === "accepted" || appData.status === "retenu") {
-                toast.success(`🎉 Félicitations ! Votre candidature pour "${appData.jobTitle}" chez ${appData.company} a été retenue !`, {
-                  duration: 5000
-                });
+                toast.success(`🎉 Candidature retenue pour "${appData.jobTitle}" !`, { duration: 5000 });
               } else if (appData.status === "rejected" || appData.status === "refusé") {
-                toast.error(`💼 Des nouvelles pour "${appData.jobTitle}" (${appData.company}) : Votre candidature n'a pas été retenue.`, {
-                  duration: 5000
-                });
+                toast.error(`💼 "${appData.jobTitle}" : candidature non retenue.`, { duration: 5000 });
               }
             }
           });
         }
 
         setApplications(updatedApps);
-        isInitialLoad = false; 
+        isInitialLoad = false;
+        
+        const jobsCache = {};
+        updatedApps.forEach(async (app) => {
+          try {
+            if (app.jobId && !jobsCache[app.jobId]) {
+              const jobSnap = await getDoc(doc(db, "jobs", app.jobId));
+              jobsCache[app.jobId] = jobSnap.exists() ? { id: jobSnap.id, ...jobSnap.data() } : null;
+            }
+            const job = jobsCache[app.jobId];
+            if (job && candidateRef.current) {
+              const score = calculateMatchingScore(candidateRef.current, job);
+              setMatchScores(prev => ({ ...prev, [app.id]: score }));
+            }
+          } catch (_e) { /* ignore */ }
+        });
       }, (err) => {
         console.error("Erreur historique applications:", err);
       });
@@ -126,12 +176,78 @@ export function Profile() {
         phone: candidate.phone || "",
         skills: candidate.skills || [],
         location: candidate.location || "",
-        cvUrl: candidate.cvUrl || "" 
+        cvUrl: candidate.cvUrl || "",
+        country: candidate.country || "",
+        gender: candidate.gender || "",
+        birthDate: candidate.birthDate || "",
+        username: candidate.username || "",
+        portfolioUrls: candidate.portfolioUrls || [],
       });
       setIsEditing(false);
       toast.success('Profil mis à jour avec succès !');
-    } catch (error) {
+    } catch (_error) {
       toast.error("Erreur lors de la sauvegarde");
+    }
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploadingAvatar(true);
+    const result = await uploadCV(file, auth.currentUser.uid); 
+    setUploadingAvatar(false);
+
+    if (result.success) {
+      setCandidate({ ...candidate, photoURL: result.url });
+      try {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), { photoURL: result.url });
+        toast.success("Photo de profil mise à jour !");
+      } catch (_err) {
+        toast.error("Erreur d'enregistrement de l'image");
+      }
+    }
+  };
+
+  const handlePortfolioUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setUploadingPortfolio(true);
+    const currentUrls = candidate.portfolioUrls || [];
+    const newUrls = [...currentUrls];
+
+    try {
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) {
+          toast.error(`${file.name} n'est pas une image`);
+          continue;
+        }
+        const storageRef = ref(storage, `portfolios/${auth.currentUser.uid}_${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        newUrls.push(downloadURL);
+      }
+      
+      setCandidate({ ...candidate, portfolioUrls: newUrls });
+      await updateDoc(doc(db, "users", auth.currentUser.uid), { portfolioUrls: newUrls });
+      toast.success(`${files.length} image(s) ajoutée(s) au portfolio !`);
+    } catch (_err) {
+      toast.error("Erreur lors de l'upload du portfolio");
+    } finally {
+      setUploadingPortfolio(false);
+      if (portfolioInputRef.current) portfolioInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePortfolioImage = async (urlToRemove) => {
+    const newUrls = (candidate.portfolioUrls || []).filter(u => u !== urlToRemove);
+    setCandidate({ ...candidate, portfolioUrls: newUrls });
+    try {
+      await updateDoc(doc(db, "users", auth.currentUser.uid), { portfolioUrls: newUrls });
+      toast.success("Image retirée du portfolio");
+    } catch (_err) {
+      toast.error("Erreur lors de la suppression");
     }
   };
 
@@ -147,8 +263,6 @@ export function Profile() {
     if (result.success) {
       setCandidate({ ...candidate, cvUrl: result.url, cvName: file.name });
       toast.success("CV mis en ligne avec succès !");
-    } else {
-      toast.error("Erreur lors de l'envoi du CV");
     }
   };
 
@@ -169,264 +283,556 @@ export function Profile() {
     });
   };
 
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      toast.success("Déconnexion réussie !");
+      navigate('/');
+    } catch (_err) {
+      toast.error("Erreur lors de la déconnexion.");
+    }
+  };
+
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-screen flex items-center justify-center bg-sky-50">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sky-500 font-medium text-sm">Chargement du profil...</p>
+      </div>
     </div>
   );
 
   if (!candidate) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
-      <h2 className="text-2xl font-black text-slate-800 mb-2">Profil introuvable</h2>
-      <button onClick={() => navigate('/offres')} className="bg-blue-700 text-white px-8 py-3 rounded-2xl font-black mt-4 shadow-lg">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 p-6 text-center">
+      <User size={64} className="text-sky-300 mb-4" />
+      <h2 className="text-2xl font-black text-sky-800 mb-2">Profil introuvable</h2>
+      <button onClick={() => navigate('/offres')} className="bg-cyan-500 text-white px-8 py-3 rounded-2xl font-black mt-4 shadow-lg hover:bg-cyan-600 transition-all">
         Retour aux offres
       </button>
     </div>
   );
 
-  // Vérification de rôle inclusive
   const isCandidateUser = candidate.role === 'candidate' || candidate.role === 'candidat' || candidate.role === 'student';
+  const acceptedApps = applications.filter(app => app.status === 'accepted' || app.status === 'retenu');
+  const portfolioUrls = candidate.portfolioUrls || [];
+  const avgScore = (() => {
+    const scores = Object.values(matchScores).filter(s => s > 0);
+    return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+  })();
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-40">
-      {/* Banner */}
-      <div className={`h-48 w-full flex items-start p-6 ${candidate.role === 'recruiter' ? 'bg-slate-900' : 'bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900'}`}>
-         <button 
+    <div className="min-h-screen bg-sky-50 font-sans antialiased pb-32">
+      
+      {/* HEADER BANNER */}
+      <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:24px_24px]"></div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
+          <button 
             onClick={() => navigate(-1)} 
-            className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl backdrop-blur-md transition-all"
-         >
-            <ArrowLeft size={20} />
-         </button>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 -mt-20">
-        {/* Carte Principale */}
-        <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-blue-900/5 border border-slate-100 p-8 mb-6 relative">
-          <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-            
-            <div className="w-32 h-32 rounded-[2.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-4xl border-8 border-white shadow-xl font-black uppercase">
-                {(candidate.fullName || candidate.displayName || "U").charAt(0)}
+            className="mb-6 flex items-center gap-2 text-sky-300 hover:text-white transition-colors font-bold text-sm"
+          >
+            <ArrowLeft size={18} /> Retour
+          </button>
+          <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+            {/* Avatar dans le header */}
+            <div className="relative shrink-0 group">
+              <div className="w-20 h-20 md:w-28 md:h-28 bg-sky-800 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden flex items-center justify-center text-sky-300 font-black text-3xl md:text-4xl uppercase">
+                {candidate.photoURL ? (
+                  <img src={candidate.photoURL} alt="Profil" className="w-full h-full object-cover" />
+                ) : (
+                  (candidate.displayName || candidate.fullName || "U").charAt(0)
+                )}
+              </div>
+              {isMyProfile && (
+                <>
+                  <button 
+                    type="button"
+                    onClick={() => avatarInputRef.current.click()}
+                    className="absolute -bottom-1 -right-1 p-1.5 md:p-2 bg-cyan-500 text-white rounded-xl hover:bg-cyan-400 transition-all shadow-lg"
+                  >
+                    <Camera size={14} />
+                  </button>
+                  <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+                </>
+              )}
             </div>
 
-            <div className="flex-1 w-full">
-              <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-                <div className="text-center sm:text-left">
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tighter">
-                        {candidate.fullName || candidate.displayName}
-                    </h1>
-                    <CustomBadge className="mt-2 bg-blue-50 text-blue-700 border-blue-100 inline-block">
-                        {candidate.role === 'recruiter' ? '🏢 Recruteur' : '🎓 Candidat'}
-                    </CustomBadge>
-                </div>
-                
-                {isMyProfile && (
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-3 mb-1">
+                <h1 className="text-xl md:text-3xl font-black tracking-tight truncate">
+                  {candidate.displayName || candidate.fullName || "Utilisateur"}
+                </h1>
+                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  {candidate.role === 'recruiter' ? 'Recruteur' : 'Candidat'}
+                </span>
+              </div>
+              <p className="text-sky-300 text-sm font-medium flex items-center gap-2">
+                <Mail size={14} /> {candidate.email}
+              </p>
+              {candidate.username && (
+                <p className="text-cyan-400 text-sm font-semibold mt-0.5">@{candidate.username}</p>
+              )}
+              {candidate.location && (
+                <p className="text-sky-400 text-xs font-medium mt-1 flex items-center gap-1">
+                  <MapPin size={12} /> {candidate.location}
+                </p>
+              )}
+            </div>
+
+            {/* Quick actions */}
+            {isMyProfile && (
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+                    isEditing 
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30' 
+                      : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                  }`}
+                >
+                  {isEditing ? 'Annuler' : 'Modifier'}
+                </button>
+                {isEditing && (
                   <button
-                    onClick={() => setIsEditing(!isEditing)}
-                    className={`px-6 py-3 rounded-2xl font-black transition-all text-sm ${isEditing ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                    onClick={handleSave}
+                    className="px-4 py-2.5 bg-cyan-500 text-white rounded-xl text-xs font-black hover:bg-cyan-400 transition-all flex items-center gap-1.5"
                   >
-                    {isEditing ? 'Annuler' : 'Modifier le profil'}
+                    <Save size={14} /> Enregistrer
                   </button>
                 )}
               </div>
+            )}
+          </div>
+        </div>
+      </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-slate-200 transition-all">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm font-bold text-slate-600 truncate">{candidate.email}</span>
-                </div>
-                
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent">
-                  <Phone className="w-5 h-5 text-blue-600" />
-                  {isEditing ? (
+      {/* MAIN CONTENT - 2 COLUMNS */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 md:mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* ===== LEFT COLUMN (1/3) ===== */}
+          <div className="lg:col-span-1 space-y-5">
+            
+            {/* Portfolio Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                  <FolderOpen size={16} className="text-cyan-500" /> Portfolio
+                </h3>
+                {isMyProfile && (
+                  <label className="cursor-pointer flex items-center gap-1.5 text-xs font-black text-cyan-500 hover:text-cyan-600 transition-colors bg-cyan-50 px-3 py-1.5 rounded-lg">
+                    <Upload size={13} />
+                    {uploadingPortfolio ? 'Envoi...' : 'Ajouter'}
                     <input 
-                       type="text"
-                       value={candidate.phone || ''} 
-                       onChange={(e) => setCandidate({...candidate, phone: e.target.value})}
-                       className="bg-white border border-slate-200 px-3 py-1 rounded-lg outline-none text-sm font-bold w-full"
-                       placeholder="Ex: 690 00 00 00"
+                      type="file" 
+                      ref={portfolioInputRef} 
+                      onChange={handlePortfolioUpload} 
+                      accept="image/*" 
+                      multiple 
+                      className="hidden" 
                     />
-                  ) : (
-                    <span className="text-sm font-bold text-slate-600">{candidate.phone || "Téléphone non renseigné"}</span>
-                  )}
-                </div>
+                  </label>
+                )}
+              </div>
 
-                {/* Localisation standardisée par liste déroulante */}
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent">
-                  <MapPin className="w-5 h-5 text-blue-600" />
+              {portfolioUrls.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {portfolioUrls.map((url, idx) => (
+                    <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden bg-sky-50 border border-sky-100">
+                      <img src={url} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        {isMyProfile && (
+                          <button 
+                            onClick={() => handleRemovePortfolioImage(url)}
+                            className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-sky-400">
+                  <Image size={40} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-medium">
+                    {isMyProfile ? "Ajoutez des images de vos réalisations" : "Aucun portfolio pour le moment"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Contact & Quick Info */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5 space-y-3">
+              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                <User size={16} className="text-cyan-500" /> Contact
+              </h3>
+              
+              <div className="space-y-2">
+                {candidate.phone && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Phone size={15} className="text-sky-400 shrink-0" />
+                    <span className="text-sky-700 font-medium">{candidate.phone}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 text-sm">
+                  <Globe size={15} className="text-sky-400 shrink-0" />
                   {isEditing ? (
                     <select 
-                       value={candidate.location || ''} 
-                       onChange={(e) => setCandidate({...candidate, location: e.target.value})}
-                       className="bg-white border border-slate-200 px-3 py-1 rounded-lg outline-none text-sm font-bold w-full cursor-pointer"
+                      value={candidate.country || 'Cameroun'} 
+                      onChange={(e) => setCandidate({...candidate, country: e.target.value})}
+                      className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
                     >
-                      <option value="">Sélectionner une ville</option>
-                      {CAMEROON_CITIES.map((city) => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
+                      <option value="Cameroun">Cameroun</option>
+                      <option value="France">France</option>
+                      <option value="Canada">Canada</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-bold text-slate-600">{candidate.location || "Non renseignée"}</span>
+                    <span className="text-sky-700 font-medium">{candidate.country || "Cameroun"}</span>
                   )}
                 </div>
+                {isCandidateUser && (
+                  <>
+                    <div className="flex items-center gap-3 text-sm">
+                      <Calendar size={15} className="text-sky-400 shrink-0" />
+                      {isEditing ? (
+                        <input 
+                          type="date" 
+                          value={candidate.birthDate || ''} 
+                          onChange={(e) => setCandidate({...candidate, birthDate: e.target.value})}
+                          className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
+                        />
+                      ) : (
+                        <span className="text-sky-700 font-medium">{candidate.birthDate || "Non renseignée"}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <User size={15} className="text-sky-400 shrink-0" />
+                      {isEditing ? (
+                        <select 
+                          value={candidate.gender || ''} 
+                          onChange={(e) => setCandidate({...candidate, gender: e.target.value})}
+                          className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
+                        >
+                          <option value="">Sélectionner</option>
+                          <option value="Masculin">Masculin</option>
+                          <option value="Féminin">Féminin</option>
+                        </select>
+                      ) : (
+                        <span className="text-sky-700 font-medium">{candidate.gender || "Non renseigné"}</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
 
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-transparent">
-                  <FileText className="w-5 h-5 text-blue-600" />
+              {/* CV */}
+              <div className="pt-3 border-t border-sky-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileText size={15} className="text-sky-400" />
+                    <span className="font-medium text-sky-700">CV</span>
+                  </div>
                   {isEditing ? (
-                    <label className="cursor-pointer group flex items-center gap-2">
+                    <label className="cursor-pointer flex items-center gap-1 text-xs font-black text-cyan-500 hover:underline">
                       <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
-                      <span className="text-sm font-black text-blue-600 group-hover:underline">
-                        {uploading ? "Envoi..." : (candidate.cvUrl ? "Changer le CV" : "Uploader mon CV")}
-                      </span>
-                      <Upload size={14} className="text-blue-600" />
+                      {uploading ? "Envoi..." : "Uploader"} <Upload size={12} />
                     </label>
+                  ) : candidate.cvUrl ? (
+                    <a href={candidate.cvUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-cyan-500 hover:underline flex items-center gap-1">
+                      Consulter <LinkIcon size={12} />
+                    </a>
                   ) : (
-                    candidate.cvUrl ? (
-                      <a href={candidate.cvUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-2">
-                        Consulter mon CV <LinkIcon size={14} />
-                      </a>
-                    ) : <span className="text-sm font-bold text-slate-400 italic">Aucun CV envoyé</span>
+                    <span className="text-xs text-sky-400 italic">Aucun CV</span>
                   )}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Section Bio / Description */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 mb-6">
-          <h2 className="text-xs font-black text-slate-400 mb-6 flex items-center gap-3 uppercase tracking-[0.2em]">
-             <Briefcase className="w-5 h-5 text-blue-600" /> 
-             {candidate.role === 'recruiter' ? "À propos de l'entreprise" : "Mon Parcours"}
-          </h2>
-          {isEditing ? (
-            <textarea
-              value={candidate.summary || ''}
-              onChange={(e) => setCandidate({...candidate, summary: e.target.value})}
-              rows={4}
-              className="w-full px-6 py-4 border-2 border-slate-50 rounded-3xl text-slate-700 focus:border-blue-600 outline-none resize-none bg-slate-50 font-medium transition-all"
-              placeholder="Décrivez votre expérience ou votre entreprise..."
-            />
-          ) : (
-            <p className="text-slate-600 leading-relaxed font-medium text-lg italic">
-              "{candidate.summary || "Aucune description pour le moment."}"
-            </p>
-          )}
-        </div>
-
-        {/* Section Compétences */}
-        {!isCandidateUser && (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 mb-6">
-            <h2 className="text-xs font-black text-slate-400 mb-6 flex items-center gap-3 uppercase tracking-[0.2em]">
-               Compétences & Expertise
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {(candidate.skills || []).map((skill, index) => (
-                <div key={index} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-black border border-blue-100">
-                  {skill}
-                  {isEditing && (
-                    <button onClick={() => removeSkill(skill)} className="hover:text-red-500">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {isEditing && (
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    value={newSkill} 
-                    onChange={(e) => setNewSkill(e.target.value)}
-                    placeholder="Ajouter..."
-                    className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-sm outline-none focus:border-blue-600 w-32"
-                    onKeyPress={(e) => e.key === 'Enter' && addSkill()}
-                  />
-                  <button onClick={addSkill} className="p-2 bg-blue-600 text-white rounded-xl">
-                    <Plus size={16} />
-                  </button>
-                </div>
+            {/* Location */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin size={16} className="text-cyan-500" />
+                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider">Localisation</h3>
+              </div>
+              {isEditing ? (
+                <select 
+                  value={candidate.location || ''} 
+                  onChange={(e) => setCandidate({...candidate, location: e.target.value})}
+                  className="w-full bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5 text-sm text-sky-700 outline-none focus:border-cyan-500"
+                >
+                  <option value="">Sélectionner une ville</option>
+                  {CAMEROON_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <p className="text-sm font-medium text-sky-700">
+                  {candidate.location || "Non renseignée"}
+                </p>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Historique des Candidatures */}
-        {isMyProfile && isCandidateUser && (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
-            <h2 className="text-xs font-black text-slate-400 mb-6 flex items-center gap-3 uppercase tracking-[0.2em]">
-               <Clock className="w-5 h-5 text-blue-600" /> Historique de mes postulations
-            </h2>
-            <div className="space-y-4">
-              {applications.length === 0 ? (
-                <p className="text-slate-400 text-center py-4 font-medium italic">Aucune candidature pour le moment.</p>
-              ) : (
-                applications.map(app => {
-                  const isAccepted = app.status === 'accepted' || app.status === 'retenu';
-                  const isRejected = app.status === 'rejected' || app.status === 'refusé';
-                  const chatId = `${app.recruiterId}_${app.candidateId}_${app.id}`;
+            {/* Tableau de bord recruteur */}
+            {candidate.role === 'recruiter' && isMyProfile && (
+              <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-3">
+                <button 
+                  onClick={() => navigate('/DashboardRecruiter')}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-sky-50 text-sky-700 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <Settings size={16} className="text-sky-400" />
+                    <span className="text-xs font-bold">Tableau Recruteur</span>
+                  </div>
+                  <ChevronRight size={15} className="text-sky-400" />
+                </button>
+              </div>
+            )}
 
-                  return (
-                    <div key={app.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                      <div>
-                        <h4 className="font-black text-slate-800 uppercase text-sm tracking-tighter">{app.jobTitle}</h4>
-                        <p className="text-xs text-slate-500 font-bold uppercase">{app.company}</p>
+            {/* Suggestions */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                  <Users size={14} className="text-cyan-500" /> Réseau
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {suggestedProfiles.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between p-2 bg-sky-50 rounded-xl">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-sky-200 flex items-center justify-center text-sky-600 text-xs font-bold">
+                        {p.name.charAt(0)}
                       </div>
-                      
-                      <div className="flex items-center gap-3 self-end sm:self-center">
-                        {/* Bouton Chat d'entretien actif UNIQUEMENT si accepté */}
-                        {isAccepted && (
-                          <button
-                            onClick={() => navigate(`/chat/${chatId}`)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition-all shadow-md shadow-blue-600/10"
-                          >
-                            <MessageSquare size={12} /> Entretien
-                          </button>
-                        )}
-
-                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border ${
-                          isAccepted ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                          isRejected ? 'bg-red-50 text-red-600 border-red-100' : 
-                          'bg-amber-50 text-amber-600 border-amber-100'
-                        }`}>
-                          {isAccepted ? <CheckCircle2 size={12} /> : isRejected ? <XCircle size={12} /> : <Clock size={12} />}
-                          {isAccepted ? 'retenu' : isRejected ? 'refusé' : 'en attente'}
-                        </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-sky-800">{p.name}</h5>
+                        <p className="text-[10px] text-sky-500">{p.role}</p>
                       </div>
                     </div>
-                  );
-                })
-              )}
+                    <div className="flex gap-1">
+                      <button className="p-1.5 hover:bg-sky-100 text-sky-400 rounded-lg transition-all"><UserPlus size={13} /></button>
+                      <button 
+                        onClick={() => {
+                          const currentUid = auth.currentUser?.uid;
+                          if (currentUid && p.id !== currentUid) {
+                            const chatId = [currentUid, p.id].sort().join('_');
+                            navigate(`/chat/${chatId}`);
+                          }
+                        }}
+                        className="p-1.5 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all"
+                      >
+                        <MessageSquare size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Déconnexion */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-3">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-red-50 text-red-500 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <LogOut size={16} />
+                  <span className="text-xs font-bold">Déconnexion</span>
+                </div>
+                <ChevronRight size={15} />
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Dashboard Shortcut Recruteur */}
-        {isMyProfile && candidate.role === 'recruiter' && (
-            <div className="mt-8 p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                    <h3 className="font-black text-2xl tracking-tighter">Espace Recrutement</h3>
-                    <p className="text-slate-400 font-medium">Gérez vos annonces et trouvez des talents.</p>
+          {/* ===== RIGHT COLUMN (2/3) ===== */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* Dashboard Stats */}
+            {isCandidateUser && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                    <Briefcase size={20} className="text-cyan-500 mx-auto mb-1" />
+                    <span className="text-2xl font-black text-sky-800 block">{applications.length}</span>
+                    <span className="text-[10px] font-bold text-sky-400 uppercase">Postulations</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                    <CheckCircle2 size={20} className="text-teal-500 mx-auto mb-1" />
+                    <span className="text-2xl font-black text-teal-600 block">{acceptedApps.length}</span>
+                    <span className="text-[10px] font-bold text-sky-400 uppercase">Retenues</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                    <TrendingUp size={20} className="text-cyan-500 mx-auto mb-1" />
+                    <span className="text-2xl font-black text-sky-800 block">{avgScore !== null ? `${avgScore}%` : '--'}</span>
+                    <span className="text-[10px] font-bold text-sky-400 uppercase">Match moyen</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                    <Sparkles size={20} className="text-cyan-500 mx-auto mb-1" />
+                    <span className="text-2xl font-black text-sky-800 block">
+                      {applications.filter(a => a.status === 'pending').length}
+                    </span>
+                    <span className="text-[10px] font-bold text-sky-400 uppercase">En attente</span>
+                  </div>
                 </div>
-                <button 
-                    onClick={() => navigate('/DashboardRecruiter')}
-                    className="w-full md:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20"
-                >
-                    Tableau de bord
-                </button>
-            </div>
-        )}
-      </div>
 
-      {/* Bouton Sauvegarder Fixe */}
-      {isEditing && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-xs px-4 z-50">
-          <button
-            onClick={handleSave}
-            className="w-full bg-blue-700 text-white py-5 rounded-[2rem] font-black shadow-2xl flex items-center justify-center gap-3 hover:bg-blue-800 transition-all scale-105"
-          >
-            <Save size={20} /> Enregistrer les modifications
-          </button>
+                {/* Accepted Applications */}
+                {acceptedApps.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-teal-500" /> Candidatures retenues
+                    </h3>
+                    {acceptedApps.map(app => {
+                      const chatId = `${app.recruiterId}_${app.candidateId}_${app.id}`;
+                      const score = matchScores[app.id];
+                      return (
+                        <div key={app.id} className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">
+                              <Building2 size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="font-bold text-sm text-sky-800 truncate">{app.jobTitle}</h4>
+                                {score !== undefined && score > 0 && (
+                                  <span className="text-[10px] font-black text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">{score}%</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-sky-500 font-medium">{app.company}</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => navigate(`/chat/${chatId}`)}
+                            className="bg-teal-500 hover:bg-teal-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-md"
+                          >
+                            <MessageCircle size={14} /> Chat
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parcours / About */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Edit3 size={14} className="text-cyan-500" />
+                {candidate.role === 'recruiter' ? "À propos de l'entreprise" : "Mon Parcours"}
+              </h3>
+              {isEditing ? (
+                <textarea
+                  value={candidate.summary || ''}
+                  onChange={(e) => setCandidate({...candidate, summary: e.target.value})}
+                  rows={4}
+                  className="w-full px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-700 text-sm outline-none resize-none focus:border-cyan-500 placeholder:text-sky-400"
+                  placeholder="Décrivez votre parcours professionnel, vos ambitions..."
+                />
+              ) : (
+                <p className="text-sky-600 text-sm leading-relaxed">
+                  {candidate.summary || "Aucune description pour le moment."}
+                </p>
+              )}
+            </div>
+
+            {/* Skills */}
+            {isCandidateUser && (
+              <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Sparkles size={14} className="text-cyan-500" /> Compétences & Expertise
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {(candidate.skills || []).map((skill, index) => (
+                    <span key={index} className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-sky-100">
+                      {skill}
+                      {isEditing && (
+                        <button onClick={() => removeSkill(skill)} className="text-red-400 hover:text-red-600 ml-1">
+                          <X size={12} />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                  {isEditing && (
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="text" 
+                        value={newSkill} 
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                        placeholder="Ajouter une compétence..."
+                        className="bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl text-xs outline-none focus:border-cyan-500 text-sky-700 w-44"
+                      />
+                      <button onClick={addSkill} className="p-1.5 bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-all">
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {(!candidate.skills || candidate.skills.length === 0) && !isEditing && (
+                    <p className="text-sky-400 text-xs italic">Aucune compétence renseignée</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Personal Details Grid */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <User size={14} className="text-cyan-500" /> Détails personnels
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-sky-50 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Téléphone</span>
+                  {isEditing ? (
+                    <input 
+                      type="text" 
+                      value={candidate.phone || ''} 
+                      onChange={(e) => setCandidate({...candidate, phone: e.target.value})}
+                      className="bg-white border border-sky-200 rounded-lg px-2 py-1.5 text-xs text-sky-700 outline-none focus:border-cyan-500 w-full"
+                      placeholder="+237..."
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-sky-800">{candidate.phone || "Non renseigné"}</span>
+                  )}
+                </div>
+                <div className="bg-sky-50 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Email</span>
+                  <span className="text-sm font-bold text-sky-800 truncate block">{candidate.email}</span>
+                </div>
+                {isCandidateUser && (
+                  <>
+                    <div className="bg-sky-50 rounded-xl p-3">
+                      <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Genre</span>
+                      <span className="text-sm font-bold text-sky-800">{candidate.gender || "Non renseigné"}</span>
+                    </div>
+                    <div className="bg-sky-50 rounded-xl p-3">
+                      <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Naissance</span>
+                      <span className="text-sm font-bold text-sky-800">{candidate.birthDate || "Non renseignée"}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <TrendingUp size={14} className="text-cyan-500" /> Postulations & Recruteurs
+              </h3>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={statsData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" stroke="#7dd3fc" tickLine={false} fontSize={11} />
+                    <YAxis stroke="#7dd3fc" tickLine={false} fontSize={11} allowDecimals={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#bae6fd', borderRadius: '12px', color: '#0c4a6e' }} />
+                    <Bar dataKey="Postulations" fill="#38bdf8" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="Recruteurs" fill="#2dd4bf" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

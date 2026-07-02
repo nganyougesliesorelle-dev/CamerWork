@@ -12,9 +12,9 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Ajout pour les fichiers
 
 /**
- * 1. INSCRIPTION + ENVOI DU MAIL DE CONFIRMATION
+ * 1. INSCRIPTION + ENVOI DU MAIL DE CONFIRMATION (Champs additionnels inclus)
  */
-export const registerUser = async (email, password, role, fullName) => {
+export const registerUser = async (email, password, role, fullName, additionalFields = {}) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -22,10 +22,10 @@ export const registerUser = async (email, password, role, fullName) => {
     // 1. Mettre à jour le profil de l'utilisateur avec son nom
     await updateProfile(user, { displayName: fullName });
 
-    // 2. ENVOI DU MAIL DE CONFIRMATION (Nouveau)
+    // 2. ENVOI DU MAIL DE CONFIRMATION
     await sendEmailVerification(user);
 
-    // 3. Création du document utilisateur dans Firestore
+    // 3. Création du document utilisateur dans Firestore avec les nouveaux champs du modèle
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       displayName: fullName,
@@ -34,6 +34,13 @@ export const registerUser = async (email, password, role, fullName) => {
       role: role, 
       emailVerified: false, // Initialisé à faux tant qu'il n'a pas cliqué sur le lien
       createdAt: serverTimestamp(),
+      
+      // Extraction sécurisée des nouveaux paramètres optionnels du profil
+      username: additionalFields.username || "",
+      gender: additionalFields.gender || "",
+      birthDate: additionalFields.birthDate || "",
+      country: additionalFields.country || "Cameroun",
+      location: additionalFields.location || ""
     });
 
     return { success: true, user, role, msg: "Un e-mail de confirmation vous a été envoyé." };
@@ -118,18 +125,22 @@ export const applyToJob = async (job, user) => {
 };
 
 /**
- * 4.B METTRE À JOUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
+ * 4.B METTRE À POUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
  */
 export const updateApplicationStatus = async (applicationId, candidateId, jobTitle, companyName, newStatus, recruiterId) => {
   try {
+    let standardizedStatus = newStatus;
+    if (newStatus === "retenu") standardizedStatus = "accepted";
+    if (newStatus === "refusé") standardizedStatus = "rejected";
+
     await updateDoc(doc(db, "applications", applicationId), {
-      status: newStatus
+      status: standardizedStatus
     });
 
     let titleNotification = "";
     let messageNotification = "";
 
-    if (newStatus === "accepted") {
+    if (standardizedStatus === "accepted") {
       titleNotification = "Candidature retenue ! 🎉";
       messageNotification = `Félicitations ! L'entreprise ${companyName} a retenu ton profil pour le poste de : ${jobTitle}. Un salon de discussion a été ouvert pour votre pré-entretien.`;
 
@@ -144,7 +155,7 @@ export const updateApplicationStatus = async (applicationId, candidateId, jobTit
         lastMessage: "Salon de discussion ouvert pour le pré-entretien.",
         lastMessageAt: serverTimestamp()
       });
-    } else if (newStatus === "rejected") {
+    } else if (standardizedStatus === "rejected") {
       titleNotification = "Mise à jour de candidature";
       messageNotification = `L'entreprise ${companyName} a clôturé l'étude des profils pour le poste de : ${jobTitle}.`;
     }
@@ -220,7 +231,7 @@ export const sendMessage = async (chatId, senderId, text) => {
       timestamp: serverTimestamp(),
     });
     return { success: true };
-  } catch (error) {
+  } catch (_error) {
     return { success: false };
   }
 };
@@ -231,33 +242,25 @@ export const sendMessage = async (chatId, senderId, text) => {
  * ==========================================
  */
 
-/**
- * Analyse une offre par rapport au profil d'un candidat (Calcul de Gap et Rentabilité)
- */
 export const analyzeOpportunity = (candidate, job) => {
-  // Extraction propre des compétences du candidat (depuis son profil)
   const candidateSkills = (candidate.skills || []).map(s => s.trim().toLowerCase());
-  // Les compétences requises par l'offre
   const jobSkills = (job.skills || []).map(s => s.trim().toLowerCase());
 
-  // 1. CALCUL DE L'INDICE DE RENTABILITÉ FINANCIÈRE
   let profitabilityScore = 0;
   const salaryValue = job.salary ? Number(job.salary.toString().replace(/\s/g, '')) : 0;
   
   if (salaryValue > 0) {
-    if (salaryValue >= 200000) profitabilityScore += 60; // Excellent niveau pour les jeunes diplômés
+    if (salaryValue >= 200000) profitabilityScore += 60; 
     else if (salaryValue >= 100000) profitabilityScore += 40;
     else profitabilityScore += 20;
   }
   
-  // Avantage additionnel basé sur le type de contrat attractif
   if (job.type === "CDI") profitabilityScore += 40;
   if (job.type === "CDD" || job.type === "Freelance") profitabilityScore += 25;
   if (job.type === "Stage") profitabilityScore += 15;
 
   if (profitabilityScore > 100) profitabilityScore = 100;
 
-  // 2. DÉTECTION DU SKILL GAP (Compétences manquantes)
   const missingSkills = (job.skills || []).filter(
     skill => !candidateSkills.includes(skill.trim().toLowerCase())
   );
@@ -267,16 +270,12 @@ export const analyzeOpportunity = (candidate, job) => {
     ? Math.round((matchedSkillsCount / jobSkills.length) * 100) 
     : 100;
 
-  // 3. RECOMMANDATION CRITÈRE GÉOGRAPHIQUE
   const sameCity = candidate.city?.trim().toLowerCase() === job.city?.trim().toLowerCase();
 
-  // 4. COMBINAISON POUR UN MATCHING PROACTIF
-  // On mélange : Score technique (50%), Rentabilité (40%), Localisation (10%)
   const globalScore = Math.round(
     (technicalMatchPercent * 0.5) + (profitabilityScore * 0.4) + (sameCity ? 10 : 0)
   );
 
-  // Décision d'envoi d'alerte : si globalScore correct OU si l'offre est ultra-rentable financièrement
   const shouldNotify = globalScore >= 50 || profitabilityScore >= 75;
 
   return {
@@ -288,9 +287,6 @@ export const analyzeOpportunity = (candidate, job) => {
   };
 };
 
-/**
- * Scanne tous les candidats pour leur distribuer les alertes personnalisées après publication
- */
 export const dispatchJobOpportunities = async (newJob) => {
   try {
     const usersSnapshot = await getDocs(collection(db, "users"));
@@ -315,7 +311,6 @@ export const dispatchJobOpportunities = async (newJob) => {
           pushMessage = `L'offre idéale vient d'être publiée par ${newJob.company} (${newJob.title}). Ton profil coche toutes les cases avec un score de rentabilité optimal. Postule vite !`;
         }
 
-        // Ajout direct dans la collection de notifications de l'utilisateur
         await addDoc(collection(db, "notifications"), {
           userId: candidate.id,
           title: "Nouvelle opportunité de carrière ! 🚀",

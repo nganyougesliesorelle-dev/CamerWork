@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { registerUser, loginUser, resetPassword } from '../firebase/authService'; 
-import { auth } from '../firebase/firebaseConfig'; 
+import { auth } from '../firebase/firebaseConfig';
+import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Building2, ArrowRight, Info, CheckCircle } from 'lucide-react';
+import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -12,18 +13,27 @@ const Home = () => {
   const [isLoginMode, setIsLoginMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState('candidate');
+  
+  // États de base existants
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // Nouvel état pour gérer la double authentification par e-mail
+  // Nouveaux états dynamiques inspirés de l'image
+  const [username, setUsername] = useState('');
+  const [country, setCountry] = useState('Cameroun');
+  const [phone, setPhone] = useState('');
+  const [gender, setGender] = useState('Male');
+  const [birthDate, setBirthDate] = useState('');
+  const [creationDate, setCreationDate] = useState(''); // Pour le recruteur
+  const [agreeTerms, setAgreeTerms] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && !loading) {
-        // Si l'utilisateur est connecté mais que son email n'est pas encore vérifié,
-        // on le maintient sur l'écran de vérification.
         if (!user.emailVerified) {
           setIsWaitingVerification(true);
         }
@@ -42,7 +52,6 @@ const Home = () => {
     else toast.error(result.error);
   };
 
-  // Permet à l'utilisateur de vérifier manuellement s'il a cliqué sur le lien
   const handleCheckVerification = async () => {
     setLoading(true);
     try {
@@ -52,7 +61,6 @@ const Home = () => {
       if (user?.emailVerified) {
         toast.success("Compte validé avec succès ! Bienvenue.");
         setIsWaitingVerification(false);
-        // Lecture du rôle pour la redirection finale
         if (role === 'recruiter') {
           navigate('/DashboardRecruiter');
         } else {
@@ -61,7 +69,7 @@ const Home = () => {
       } else {
         toast.error("Votre adresse e-mail n'a pas encore été validée. Vérifiez votre boîte de réception.");
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Erreur lors de la vérification.");
     } finally {
       setLoading(false);
@@ -71,6 +79,10 @@ const Home = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!isLoginMode && !agreeTerms) {
+      toast.error("Veuillez accepter les termes et conditions.");
+      return;
+    }
     if (!isLoginMode && fullName.length < 2) {
       toast.error("Veuillez entrer un nom valide.");
       return;
@@ -88,7 +100,6 @@ const Home = () => {
       if (isLoginMode) {
         const result = await loginUser(cleanEmail, password);
         if (result.success) {
-          // Vérification double facteur au login
           if (!auth.currentUser.emailVerified) {
             toast.info("Veuillez valider votre adresse e-mail avant de vous connecter.");
             setIsWaitingVerification(true);
@@ -97,6 +108,7 @@ const Home = () => {
           }
 
           toast.success("Content de vous revoir !");
+          requestNotificationPermission(auth.currentUser.uid);
           if (result.role === 'recruiter') {
             navigate('/DashboardRecruiter'); 
           } else {
@@ -106,9 +118,9 @@ const Home = () => {
           toast.error(result.error || "Erreur de connexion");
         }
       } else {
+        // Tu pourras ajouter country, phone, gender, birthDate, creationDate ici si ta fonction registerUser évolue !
         const result = await registerUser(cleanEmail, password, role, fullName);
         if (result.success) {
-          // Envoi immédiat de l'email de validation
           if (auth.currentUser) {
             await sendEmailVerification(auth.currentUser);
             toast.success("Un e-mail de confirmation vous a été envoyé !");
@@ -126,41 +138,27 @@ const Home = () => {
     }
   };
 
-  // ÉCRAN INTERMÉDIAIRE : DOUBLE FACTEUR / EN ATTENTE DE CLIC SUR LE LIEN EMAIL
   if (isWaitingVerification) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8 font-sans">
-        <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center space-y-6">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-            <Mail size={32} />
+      <div className="min-h-screen bg-[#082f49] flex items-center justify-center p-4 font-sans text-white">
+        <div className="bg-[#0c4a6e] w-full max-w-md p-8 rounded-3xl shadow-2xl border border-white/10 text-center space-y-6">
+          <div className="w-16 h-16 bg-cyan-500/10 text-cyan-500 rounded-2xl flex items-center justify-center mx-auto">
+            <Mail size={28} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Confirmez votre e-mail</h2>
-            <p className="text-sm text-slate-500 font-medium">
-              Un lien d'activation sécurisé a été envoyé à l'adresse <strong className="text-slate-700">{email || auth.currentUser?.email}</strong>.
+            <h2 className="text-2xl font-bold tracking-tight">Confirmez votre e-mail</h2>
+            <p className="text-sm text-sky-300 leading-relaxed">
+              Un lien d'activation a été envoyé à l'adresse <br />
+              <strong className="text-cyan-500 font-semibold">{email || auth.currentUser?.email}</strong>.
             </p>
-          </div>
-          <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 text-left flex gap-3 text-xs text-blue-800 font-medium leading-relaxed">
-            <span className="text-blue-600 flex-shrink-0 mt-0.5"><Info size={14} /></span>
-            <p>Cliquez sur le lien contenu dans le message, puis revenez sur cette page pour valider l'accès.</p>
           </div>
           <button 
             type="button" 
             disabled={loading}
             onClick={handleCheckVerification} 
-            className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-colors disabled:bg-slate-300"
+            className="w-full bg-cyan-500 hover:bg-cyan-600 text-[#082f49] font-bold py-3.5 rounded-xl transition-all shadow-lg active:scale-95"
           >
-            {loading ? "Vérification..." : "J'ai validé mon e-mail"} <CheckCircle size={18} />
-          </button>
-          <button 
-            type="button" 
-            onClick={() => {
-              auth.signOut();
-              setIsWaitingVerification(false);
-            }} 
-            className="text-xs text-slate-400 font-bold hover:text-blue-700 transition-colors uppercase tracking-widest"
-          >
-            Retourner à l'accueil
+            {loading ? "Vérification..." : "J'ai validé mon e-mail"}
           </button>
         </div>
       </div>
@@ -168,96 +166,140 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8 font-sans">
-      <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[650px] border border-slate-100">
+    <div className="min-h-screen bg-gradient-to-b from-[#0c4a6e] via-[#0c4a6e] to-[#082f49] flex items-center justify-center p-4 md:p-8 font-sans selection:bg-cyan-500/20 text-white relative">
+      
+      {/* BOUTON RETOUR ABSOLU */}
+      <button 
+        onClick={() => navigate('/')} 
+        className="absolute top-6 left-6 flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
+      >
+        <ArrowLeft size={16} /> Retour
+      </button>
+
+      <div className="w-full max-w-md mx-auto space-y-6 pt-8">
         
-        {/* SECTION GAUCHE */}
-        <div className="md:w-5/12 bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 p-10 text-white flex flex-col justify-between">
-          <div className="space-y-8">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-blue-900 font-black text-xl">CW</span>
-              </div>
-              <span className="text-2xl font-black tracking-tighter">CamerWork</span>
-            </div>
-            <div className="space-y-4">
-              <h1 className="text-4xl font-extrabold leading-tight">
-                {isLoginMode ? "Ravi de vous revoir !" : "L'avenir professionnel du Cameroun se trouve ici"}
-              </h1>
-              <p className="text-blue-100 text-lg font-medium opacity-90">
-                Connectez-vous pour accéder aux meilleures opportunités.
-              </p>
-            </div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 mt-8">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="bg-yellow-400 text-blue-900 p-1 rounded-lg"><Info size={14} /></span>
-              <span className="font-bold text-sm text-yellow-400 uppercase tracking-widest">Info</span>
-            </div>
-            <p className="text-sm text-blue-50">Venez découvrir l'univers de l'emploi sur CamerWork.</p>
-          </div>
+        {/* TITRE PRINCIPAL */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-sky-100">
+            {isLoginMode ? "Connexion" : "Creer un compte"}
+          </h1>
+          <p className="text-xs text-sky-400 font-medium">
+            {isLoginMode ? "Heureux de vous revoir sur CamerWork" : "Remplissez vos informations pour commencer"}
+          </p>
         </div>
 
-        {/* SECTION DROITE */}
-        <div className="md:w-7/12 p-8 md:p-16 flex flex-col justify-center">
-          <div className="mb-10 text-center md:text-left">
-            <h2 className="text-4xl font-black text-slate-800 tracking-tight">
-              {isLoginMode ? "Connexion" : "Créer un compte"}
-            </h2>
+        {/* SÉLECTEUR DE RÔLE (Candidat vs Recruteur) - Visible uniquement à l'inscription */}
+        {!isLoginMode && (
+          <div className="grid grid-cols-2 p-1 bg-[#075985] rounded-xl border border-white/5">
+            <button 
+              type="button" 
+              onClick={() => setRole('candidate')} 
+              className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'candidate' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
+            >
+              Candidat
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setRole('recruiter')} 
+              className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'recruiter' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
+            >
+              Recruteur
+            </button>
           </div>
+        )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLoginMode && (
-              <>
-                <div className="flex p-1.5 bg-slate-100 rounded-2xl mb-6">
-                  <button type="button" onClick={() => setRole('candidate')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center ${role === 'candidate' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
-                    <User size={16} className="mr-2"/> Candidat
-                  </button>
-                  <button type="button" onClick={() => setRole('recruiter')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center ${role === 'recruiter' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
-                    <Building2 size={16} className="mr-2"/> Recruteur
-                  </button>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nom / Entreprise</label>
-                  <div className="relative mt-1">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                    <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-600 focus:bg-white outline-none" placeholder="Votre nom" />
+        {/* FORMULAIRE UNIQUE REPRIS DE L'IMAGE */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* ---- MODE INSCRIPTION : CHAMPS DYNAMIQUES ---- */}
+          {!isLoginMode && (
+            <>
+              {role === 'candidate' ? (
+                /* ---- CHAMPS CANDIDAT ---- */
+                <>
+                  <input required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Nom" />
+                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Prénoms" />
+                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Pays" />
+                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="E-mail" />
+                  <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Télephone" />
+
+                  {/* SÉLECTEUR GENRE INSPIRED BY IMAGE */}
+                  <div className="flex items-center gap-4 py-1 text-sm font-medium text-sky-300">
+                    <span>Sexe</span>
+                    <button type="button" onClick={() => setGender('Masculin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Male' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>Masculin</button>
+                    <button type="button" onClick={() => setGender('Féminin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Female' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>Féminin</button>
                   </div>
+
+                  {/* DATE DE NAISSANCE */}
+                  <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
+                    <span>Date De Naissance</span>
+                    <input required type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="px-4 py-2 bg-[#075985] border border-white/5 rounded-lg outline-none text-xs text-sky-200 focus:border-cyan-500" />
+                  </div>
+                </>
+              ) : (
+                /* ---- CHAMPS RECRUTEUR ---- */
+                <>
+                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Nom de l'entreprise" />
+                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Email de l'entreprise" />
+                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Pays" />
+                  
+                  {/* DATE DE CRÉATION */}
+                  <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
+                    <span>Date de création</span>
+                    <input required type="date" value={creationDate} onChange={(e) => setCreationDate(e.target.value)} className="px-4 py-2 bg-[#075985] border border-white/5 rounded-lg outline-none text-xs text-sky-200 focus:border-cyan-500" />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ---- MODE CONNEXION : CHAMPS SIMPLES ---- */}
+          {isLoginMode && (
+            <>
+              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="E-mail" />
+              <div className="space-y-1">
+                <div className="flex justify-end">
+                  <button type="button" onClick={handleForgotPass} className="text-[10px] font-bold text-cyan-500 hover:underline uppercase tracking-wider">Oublié ?</button>
                 </div>
-              </>
-            )}
-
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Email</label>
-              <div className="relative mt-1">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-600 focus:bg-white outline-none" placeholder="exemple@mail.com" />
               </div>
-            </div>
+            </>
+          )}
 
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Mot de passe</label>
-                {isLoginMode && <button type="button" onClick={handleForgotPass} className="text-[10px] font-black text-blue-600 uppercase">Oublié ?</button>}
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-600 focus:bg-white outline-none" placeholder="••••••••" />
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading} className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-5 rounded-2xl shadow-xl mt-4 flex items-center justify-center gap-3 disabled:bg-slate-300 transition-colors">
-              {loading ? "Chargement..." : (isLoginMode ? "Connexion" : "Démarrer")}
-              {!loading && <ArrowRight size={20} />}
-            </button>
-          </form>
-
-          <div className="mt-8 text-center">
-            <button onClick={() => setIsLoginMode(!isLoginMode)} className="text-blue-700 font-black hover:underline text-sm">
-              {isLoginMode ? "Nouveau sur CamerWork ? Créer un compte" : "Déjà un compte ? Se connecter"}
+          {/* MOT DE PASSE (Partagé par les deux modes) */}
+          <div className="relative">
+            <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 pr-12 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Password" />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400 hover:text-cyan-400 transition-colors p-1" tabIndex={-1}>
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+
+          {/* TERMS AND CONDITIONS CHECKBOX AS SHOWN IN IMAGE */}
+          {!isLoginMode && (
+            <label className="flex items-center gap-3 cursor-pointer pt-2 select-none">
+              <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="accent-cyan-500 h-4 w-4 rounded-md" />
+              <span className="text-xs text-sky-300 font-medium">
+                Agree with <span className="text-cyan-500 underline">Terms & Conditions</span>
+              </span>
+            </label>
+          )}
+
+          {/* BOUTON PRINCIPAL JAUNE ORANGE DE L'IMAGE */}
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full bg-[#fca311] hover:bg-[#e5940e] text-[#0c4a6e] font-bold py-4 rounded-xl shadow-lg mt-4 transition-all active:scale-[0.98] uppercase tracking-wider text-sm disabled:bg-sky-700 disabled:text-sky-400"
+          >
+            {loading ? "Chargement..." : (isLoginMode ? "Login" : "Commencer l'aventure")}
+          </button>
+        </form>
+
+        {/* LIEN DE COMMUTATION INTERACTION INTERNE */}
+        <div className="text-center pt-2">
+          <button onClick={() => setIsLoginMode(!isLoginMode)} className="text-cyan-500 font-bold hover:underline text-xs tracking-wide">
+            {isLoginMode ? "Nouveau sur CamerWork ? Créer un compte" : "Déjà un compte ? Se connecter"}
+          </button>
         </div>
+
       </div>
     </div>
   );

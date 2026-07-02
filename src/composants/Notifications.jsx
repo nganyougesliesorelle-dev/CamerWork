@@ -7,13 +7,12 @@ import { toast } from 'sonner';
 
 export function Notifications() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!auth.currentUser);
   const navigate = useNavigate();
   const user = auth.currentUser;
 
   useEffect(() => {
     if (!user) {
-      setLoading(false);
       return;
     }
 
@@ -71,7 +70,7 @@ export function Notifications() {
       });
       await batch.commit();
       toast.success("Toutes les notifications ont été marquées comme lues.");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Impossible de tout mettre à jour.");
     }
   };
@@ -79,44 +78,44 @@ export function Notifications() {
   const getIcon = (type) => {
     switch (type) {
       case 'opportunity_boost':
-        return <Sparkles className="text-amber-500" size={20} />;
+        return <Sparkles className="text-cyan-500" size={20} />;
       case 'application':
-        return <Briefcase className="text-blue-500" size={20} />;
+        return <Briefcase className="text-sky-500" size={20} />;
       case 'status_update':
-        return <CheckCircle className="text-emerald-500" size={20} />;
+        return <CheckCircle className="text-teal-500" size={20} />;
       default:
-        return <Bell className="text-slate-500" size={20} />;
+        return <Bell className="text-sky-500" size={20} />;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50">
+        <div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 text-center">
-        <Mail size={48} className="text-slate-300 mb-4" />
-        <p className="text-slate-600 font-bold">Connecte-toi pour consulter ton centre d'alertes.</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 p-4 text-center">
+        <Mail size={48} className="text-sky-300 mb-4" />
+        <p className="text-sky-600 font-bold">Connecte-toi pour consulter ton centre d'alertes.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-sky-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         
         {/* En-tête de page */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
-              <Bell className="text-blue-600" /> Centre d'alertes
+            <h1 className="text-3xl font-black text-sky-900 uppercase tracking-tight flex items-center gap-3">
+              <Bell className="text-cyan-600" /> Centre d'alertes
             </h1>
-            <p className="text-slate-500 text-sm font-medium mt-1">
+            <p className="text-sky-500 text-sm font-medium mt-1">
               Suivi de tes opportunités de carrière et de tes candidatures au Cameroun.
             </p>
           </div>
@@ -124,7 +123,7 @@ export function Notifications() {
           {notifications.some(n => !n.read) && (
             <button 
               onClick={markAllAsRead}
-              className="text-xs font-black text-blue-600 hover:text-blue-800 uppercase tracking-wider bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-all self-start sm:self-center"
+              className="text-xs font-black text-cyan-600 hover:text-sky-700 uppercase tracking-wider bg-sky-50 hover:bg-sky-100 px-4 py-2.5 rounded-xl transition-all self-start sm:self-center"
             >
               Tout marquer comme lu
             </button>
@@ -133,12 +132,12 @@ export function Notifications() {
 
         {/* Liste des notifications */}
         {notifications.length === 0 ? (
-          <div className="bg-white border border-slate-100 rounded-[2rem] p-12 text-center shadow-sm">
-            <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="bg-white border border-sky-100 rounded-[2rem] p-12 text-center shadow-sm">
+            <div className="w-16 h-16 bg-sky-50 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Bell size={28} />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase mb-1">Aucune notification</h3>
-            <p className="text-slate-500 text-sm font-medium max-w-sm mx-auto">
+            <h3 className="text-lg font-black text-sky-800 uppercase mb-1">Aucune notification</h3>
+            <p className="text-sky-500 text-sm font-medium max-w-sm mx-auto">
               Dès qu'un recruteur publiera une offre alignée avec tes compétences, l'analyse proactive s'affichera ici.
             </p>
           </div>
@@ -150,18 +149,18 @@ export function Notifications() {
                 onClick={() => handleNotificationClick(notif)}
                 className={`group border rounded-[2rem] p-5 flex gap-4 items-start transition-all cursor-pointer relative overflow-hidden ${
                   notif.read 
-                    ? 'bg-white/60 border-slate-100 opacity-75 hover:opacity-100 hover:bg-white' 
-                    : 'bg-white border-blue-100 shadow-md shadow-blue-900/5 hover:border-blue-300'
+                    ? 'bg-white/60 border-sky-100 opacity-75 hover:opacity-100 hover:bg-white' 
+                    : 'bg-white border-sky-100 shadow-md shadow-sky-800/5 hover:border-blue-300'
                 }`}
               >
                 {/* Indicateur de non-lecture */}
                 {!notif.read && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-600"></div>
                 )}
 
                 {/* Icône de gauche */}
                 <div className={`p-3 rounded-xl shrink-0 ${
-                  notif.read ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'
+                  notif.read ? 'bg-sky-50 text-sky-400' : 'bg-sky-50 text-cyan-600'
                 }`}>
                   {getIcon(notif.type)}
                 </div>
@@ -170,29 +169,29 @@ export function Notifications() {
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-4">
                     <h4 className={`text-base font-black uppercase tracking-tight leading-tight ${
-                      notif.read ? 'text-slate-700' : 'text-slate-900'
+                      notif.read ? 'text-sky-700' : 'text-sky-900'
                     }`}>
                       {notif.title}
                     </h4>
                     {notif.globalScore && (
-                      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 font-black text-[10px] rounded-lg tracking-wider shrink-0">
+                      <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-100 font-black text-[10px] rounded-lg tracking-wider shrink-0">
                         MATCH {notif.globalScore}%
                       </span>
                     )}
                   </div>
                   
-                  <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                  <p className="text-sky-600 text-sm font-medium leading-relaxed">
                     {notif.message}
                   </p>
                   
-                  <div className="flex items-center gap-2 pt-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center gap-2 pt-1 text-[10px] font-bold text-sky-400 uppercase tracking-wider">
                     <span>
                       {notif.createdAt?.toDate ? new Date(notif.createdAt.toDate()).toLocaleDateString('fr-FR', {
                         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                       }) : "À l'instant"}
                     </span>
                     {notif.jobId && (
-                      <span className="text-blue-600 font-black flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                      <span className="text-cyan-600 font-black flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                         <Eye size={12} /> Voir l'offre
                       </span>
                     )}
