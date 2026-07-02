@@ -69,6 +69,13 @@ export function RecruiterPost() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Si pas à la dernière étape, avancer au lieu de publier
+    if (step < 3) {
+      if (canNext()) setStep(step + 1);
+      return;
+    }
+
     const user = auth.currentUser;
     if (!user) return toast.error("Connectez-vous.");
     if (formData.missions.filter(m => m.trim()).length === 0) return toast.error("Ajoutez au moins une mission.");

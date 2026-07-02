@@ -6,8 +6,10 @@ import { requestNotificationPermission } from '../firebase/notificationService';
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { useLang } from '../composants/LangContext';
 
 const Home = () => {
+  const { lang, setLang, t } = useLang();
   const navigate = useNavigate();
   
   const [isLoginMode, setIsLoginMode] = useState(false);
@@ -23,7 +25,7 @@ const Home = () => {
   const [username, setUsername] = useState('');
   const [country, setCountry] = useState('Cameroun');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState('Male');
+  const [gender, setGender] = useState('Masculin');
   const [birthDate, setBirthDate] = useState('');
   const [creationDate, setCreationDate] = useState(''); // Pour le recruteur
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -141,7 +143,7 @@ const Home = () => {
   if (isWaitingVerification) {
     return (
       <div className="min-h-screen bg-[#082f49] flex items-center justify-center p-4 font-sans text-white">
-        <div className="bg-[#0c4a6e] w-full max-w-md p-8 rounded-3xl shadow-2xl border border-white/10 text-center space-y-6">
+        <div className="bg-white/[0.06] w-full max-w-md p-8 rounded-3xl shadow-2xl border border-white/10 text-center space-y-6">
           <div className="w-16 h-16 bg-cyan-500/10 text-cyan-500 rounded-2xl flex items-center justify-center mx-auto">
             <Mail size={28} />
           </div>
@@ -166,25 +168,56 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0c4a6e] via-[#0c4a6e] to-[#082f49] flex items-center justify-center p-4 md:p-8 font-sans selection:bg-cyan-500/20 text-white relative">
+    <div className="min-h-screen bg-gradient-to-br from-sky-900 via-[#0a4a6e] to-cyan-950 flex items-center justify-center p-4 md:p-8 font-sans selection:bg-cyan-500/20 text-white relative overflow-hidden">
       
+      {/* Effets de lumière */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-cyan-400/8 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/[0.02] rounded-full blur-2xl pointer-events-none"></div>
+      
+      {/* Logo CW en arrière-plan (watermark) */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+        <span className="text-[20rem] md:text-[30rem] font-black tracking-tighter text-white/[0.03] leading-none"
+          style={{ background: 'linear-gradient(135deg, rgba(56,189,248,0.08), rgba(45,212,191,0.06))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          CW
+        </span>
+      </div>
+
       {/* BOUTON RETOUR ABSOLU */}
       <button 
         onClick={() => navigate('/')} 
-        className="absolute top-6 left-6 flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
+        className="absolute top-6 left-6 z-10 flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
       >
-        <ArrowLeft size={16} /> Retour
+        <ArrowLeft size={16} />             {t('retour')}
       </button>
 
-      <div className="w-full max-w-md mx-auto space-y-6 pt-8">
+      <div className="w-full max-w-md mx-auto space-y-6 pt-8 relative z-10">
         
+        {/* SÉLECTEUR DE LANGUE */}
+        <div className="flex justify-center gap-2">
+          <button onClick={() => setLang('fr')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${lang === 'fr' ? 'bg-cyan-500 text-white' : 'bg-[#075985] text-sky-400 border border-white/5'}`}>
+            🇫🇷 FR
+          </button>
+          <button onClick={() => setLang('en')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${lang === 'en' ? 'bg-cyan-500 text-white' : 'bg-[#075985] text-sky-400 border border-white/5'}`}>
+            🇬🇧 EN
+          </button>
+        </div>
+
+        {/* LOGO CW */}
+        <div className="flex justify-center">
+          <div className="relative w-16 h-16 bg-gradient-to-br from-sky-500 via-cyan-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-2xl shadow-cyan-500/30 hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer">
+            <span className="font-black text-2xl tracking-tighter text-white select-none leading-none">CW</span>
+            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full shadow-md"></div>
+          </div>
+        </div>
+
         {/* TITRE PRINCIPAL */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight text-sky-100">
-            {isLoginMode ? "Connexion" : "Creer un compte"}
+            {isLoginMode ? t('connexion') : t('creerCompte')}
           </h1>
           <p className="text-xs text-sky-400 font-medium">
-            {isLoginMode ? "Heureux de vous revoir sur CamerWork" : "Remplissez vos informations pour commencer"}
+            {isLoginMode ? t('heureuxRevoir') : t('remplirInfos')}
           </p>
         </div>
 
@@ -196,14 +229,14 @@ const Home = () => {
               onClick={() => setRole('candidate')} 
               className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'candidate' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
             >
-              Candidat
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setRole('recruiter')} 
-              className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'recruiter' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
-            >
-              Recruteur
+               {t('candidat')}
+             </button>
+             <button 
+               type="button" 
+               onClick={() => setRole('recruiter')} 
+               className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'recruiter' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
+             >
+               {t('recruteur')}
             </button>
           </div>
         )}
@@ -225,14 +258,14 @@ const Home = () => {
 
                   {/* SÉLECTEUR GENRE INSPIRED BY IMAGE */}
                   <div className="flex items-center gap-4 py-1 text-sm font-medium text-sky-300">
-                    <span>Sexe</span>
-                    <button type="button" onClick={() => setGender('Masculin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Male' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>Masculin</button>
-                    <button type="button" onClick={() => setGender('Féminin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Female' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>Féminin</button>
+                    <span>{t('sexe')}</span>
+                    <button type="button" onClick={() => setGender('Masculin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Masculin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('masculin')}</button>
+                    <button type="button" onClick={() => setGender('Féminin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Féminin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('feminin')}</button>
                   </div>
 
-                  {/* DATE DE NAISSANCE */}
-                  <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
-                    <span>Date De Naissance</span>
+              {/* DATE DE NAISSANCE */}
+                   <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
+                     <span>{t('dateNaissance')}</span>
                     <input required type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="px-4 py-2 bg-[#075985] border border-white/5 rounded-lg outline-none text-xs text-sky-200 focus:border-cyan-500" />
                   </div>
                 </>
@@ -259,7 +292,7 @@ const Home = () => {
               <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="E-mail" />
               <div className="space-y-1">
                 <div className="flex justify-end">
-                  <button type="button" onClick={handleForgotPass} className="text-[10px] font-bold text-cyan-500 hover:underline uppercase tracking-wider">Oublié ?</button>
+                  <button type="button" onClick={handleForgotPass} className="text-[10px] font-bold text-cyan-500 hover:underline uppercase tracking-wider">{t('oublie')}</button>
                 </div>
               </div>
             </>
@@ -267,7 +300,7 @@ const Home = () => {
 
           {/* MOT DE PASSE (Partagé par les deux modes) */}
           <div className="relative">
-            <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 pr-12 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Password" />
+            <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 pr-12 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Mot de passe" />
             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400 hover:text-cyan-400 transition-colors p-1" tabIndex={-1}>
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -278,7 +311,7 @@ const Home = () => {
             <label className="flex items-center gap-3 cursor-pointer pt-2 select-none">
               <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="accent-cyan-500 h-4 w-4 rounded-md" />
               <span className="text-xs text-sky-300 font-medium">
-                Agree with <span className="text-cyan-500 underline">Terms & Conditions</span>
+                {t('accepterTermes')}
               </span>
             </label>
           )}
@@ -289,14 +322,14 @@ const Home = () => {
             disabled={loading} 
             className="w-full bg-[#fca311] hover:bg-[#e5940e] text-[#0c4a6e] font-bold py-4 rounded-xl shadow-lg mt-4 transition-all active:scale-[0.98] uppercase tracking-wider text-sm disabled:bg-sky-700 disabled:text-sky-400"
           >
-            {loading ? "Chargement..." : (isLoginMode ? "Login" : "Commencer l'aventure")}
+            {loading ? t('charger') : (isLoginMode ? t('login') : t('commencerAventure'))}
           </button>
         </form>
 
         {/* LIEN DE COMMUTATION INTERACTION INTERNE */}
         <div className="text-center pt-2">
           <button onClick={() => setIsLoginMode(!isLoginMode)} className="text-cyan-500 font-bold hover:underline text-xs tracking-wide">
-            {isLoginMode ? "Nouveau sur CamerWork ? Créer un compte" : "Déjà un compte ? Se connecter"}
+            {isLoginMode ? t('nouveauCamerWork') : t('dejaCompte')}
           </button>
         </div>
 

@@ -7,7 +7,7 @@ import {
   sendEmailVerification // AJOUTÉ : Requis pour envoyer le mail de confirmation
 } from "firebase/auth";
 import { 
-  doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs
+  doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs, query, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Ajout pour les fichiers
 
@@ -125,7 +125,32 @@ export const applyToJob = async (job, user) => {
 };
 
 /**
- * 4.B METTRE À POUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
+ * 4.A ANNULER UNE CANDIDATURE (côté candidat)
+ */
+export const cancelApplication = async (jobId, userId) => {
+  try {
+    const q = query(
+      collection(db, "applications"),
+      where("jobId", "==", jobId),
+      where("candidateId", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return { success: false, error: "Candidature introuvable." };
+
+    const batch = [];
+    snapshot.forEach(docSnap => {
+      batch.push(deleteDoc(doc(db, "applications", docSnap.id)));
+    });
+    await Promise.all(batch);
+    return { success: true };
+  } catch (error) {
+    console.error("Erreur annulation:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * 4.B METTRE À JOUR LE STATUT, NOTIFIER ET CRÉER UN CHAT AUTOMATIQUE
  */
 export const updateApplicationStatus = async (applicationId, candidateId, jobTitle, companyName, newStatus, recruiterId) => {
   try {

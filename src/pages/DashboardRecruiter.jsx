@@ -3,13 +3,13 @@ import {
   Briefcase, Users, CheckCircle, XCircle, ExternalLink, PlusCircle, 
   LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, MessageSquare, 
   LogOut, Search, Filter, Bell, Building, Sparkles, TrendingUp, 
-  Calendar, Eye, User, ChevronRight, BarChart3, Activity
+  Calendar, Eye, User, ChevronRight, BarChart3, Activity, CheckCheck, X
 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
 import { updateApplicationStatus } from '../firebase/authService';
 import { calculateMatchingScore } from '../firebase/matchingEngine';
-import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore'; 
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, getDoc, writeBatch } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -88,6 +88,18 @@ export function DashboardRecruiter() {
     if (window.confirm("Voulez-vous vous déconnecter ?")) {
       await signOut(auth); toast.success("Déconnexion réussie"); navigate('/');
     }
+  };
+
+  const markNotifAsRead = async (notifId) => {
+    try { await updateDoc(doc(db, "notifications", notifId), { read: true }); } catch (_e) { /* ignore */ }
+  };
+
+  const markAllNotifsAsRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    if (unread.length === 0) return;
+    const batch = writeBatch(db);
+    unread.forEach(n => batch.update(doc(db, "notifications", n.id), { read: true }));
+    await batch.commit();
   };
 
   // eslint-disable-next-line no-unused-vars
@@ -190,6 +202,43 @@ export function DashboardRecruiter() {
             </div>
           </div>
         </div>
+        
+        {/* Dropdown notifications */}
+        {showNotifications && (
+          <div className="absolute right-4 sm:right-8 top-20 md:top-24 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-sky-100 z-50 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-sky-50">
+              <h3 className="text-xs font-black text-sky-800 uppercase">Notifications</h3>
+              <button onClick={() => { markAllNotifsAsRead(); setShowNotifications(false); }} className="text-[10px] font-bold text-cyan-500 hover:underline flex items-center gap-1">
+                <CheckCheck size={12} /> Tout lu
+              </button>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <p className="text-center text-xs text-sky-400 py-8">Aucune notification</p>
+              ) : (
+                notifications.map((n) => (
+                  <div 
+                    key={n.id} 
+                    onClick={() => { markNotifAsRead(n.id); if (n.jobId) navigate(`/offres/${n.jobId}`); setShowNotifications(false); }}
+                    className={`p-3 border-b border-sky-50 cursor-pointer hover:bg-sky-50 transition-all flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}
+                  >
+                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.read ? 'bg-sky-200' : 'bg-cyan-500'}`} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-sky-800 truncate">{n.title}</p>
+                      <p className="text-[11px] text-sky-500 truncate">{n.message}</p>
+                      <p className="text-[9px] text-sky-400 mt-0.5">
+                        {n.createdAt?.toDate ? new Date(n.createdAt.toDate()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button onClick={() => setShowNotifications(false)} className="w-full p-3 text-center text-xs font-bold text-sky-500 hover:bg-sky-50 border-t border-sky-50">
+              Fermer
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 space-y-6">

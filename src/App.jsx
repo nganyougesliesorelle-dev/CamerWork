@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { messaging } from './firebase/firebaseConfig';
+import { messaging, db, auth } from './firebase/firebaseConfig';
 import { onMessage } from 'firebase/messaging';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 // Imports de tes pages et composants
@@ -17,8 +19,61 @@ import { Chat } from './pages/Chat';
 import { AtsCv } from './pages/AtsCv';
 import { InterviewSimulator } from './pages/InterviewSimulator';
 import { Notifications } from './composants/Notifications';
+import { LangProvider } from './composants/LangContext';
 
 function App() {
+  const [globalUser, setGlobalUser] = useState(null);
+  const prevAppsRef = useRef({});
+
+  // Surveiller l'auth
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => setGlobalUser(user));
+    return () => unsub();
+  }, []);
+
+  // Écouteur global : changements de statut des candidatures (candidat)
+  useEffect(() => {
+    if (!globalUser) return;
+    const q = query(
+      collection(db, "applications"),
+      where("candidateId", "==", globalUser.uid),
+      orderBy("appliedAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "modified") {
+          const data = change.doc.data();
+          const prev = prevAppsRef.current[change.doc.id];
+          // Détecter un changement de statut
+          if (prev && prev.status !== data.status) {
+            if (data.status === "accepted" || data.status === "retenu") {
+              const chatId = `${data.recruiterId || ''}_${data.candidateId}_${change.doc.id}`;
+              toast.success(
+                <div>
+                  <strong>🎉 Candidature retenue !</strong>
+                  <p className="text-xs mt-1">{data.jobTitle} chez {data.company}</p>
+                  <button 
+                    onClick={() => window.location.href = `/chat/${chatId}`}
+                    className="mt-2 px-3 py-1 bg-teal-500 text-white rounded-lg text-xs font-bold"
+                  >
+                    Accéder au chat
+                  </button>
+                </div>,
+                { duration: 8000 }
+              );
+            } else if (data.status === "rejected" || data.status === "refusé") {
+              toast.error(`💼 "${data.jobTitle}" : candidature non retenue.`, { duration: 5000 });
+            }
+          }
+          prevAppsRef.current[change.doc.id] = data;
+        } else if (change.type === "added") {
+          prevAppsRef.current[change.doc.id] = change.doc.data();
+        }
+      });
+    });
+    return () => unsub();
+  }, [globalUser]);
+
   // Gestionnaire de notifications push en premier plan
   useEffect(() => {
     try {
@@ -38,6 +93,7 @@ function App() {
   }, []);
 
   return (
+    <LangProvider>
     <Router>
       <Toaster 
         position="top-center" 
@@ -82,6 +138,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
+    </LangProvider>
   );
 }
 

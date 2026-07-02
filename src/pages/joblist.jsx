@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Briefcase, Building2, Clock, User, ChevronDown, PlusCircle, LogOut, Sparkles } from 'lucide-react'; 
+import { Search, MapPin, Briefcase, Building2, Clock, User, ChevronDown, PlusCircle, LogOut, Sparkles, Moon, Sun } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig'; 
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
 import { calculateMatchingScore } from "../firebase/matchingEngine";
 // Composant Carte d'Offre avec Badge de Correspondance Intelligent
-const JobCard = ({ job, score, userRole, onClick }) => {
+const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
   const formatDate = (timestamp) => {
     if (!timestamp) return "À l'instant";
     try {
@@ -31,7 +31,7 @@ const JobCard = ({ job, score, userRole, onClick }) => {
   return (
     <div 
       onClick={onClick}
-      className="bg-white p-6 rounded-2xl shadow-sm border border-sky-100 hover:shadow-xl hover:border-sky-200 transition-all cursor-pointer group flex flex-col justify-between"
+      className={`p-6 rounded-2xl shadow-sm border hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between ${darkMode ? 'bg-slate-800 border-slate-700 hover:border-sky-500' : 'bg-white border-sky-100 hover:border-sky-200'}`}
     >
       <div>
         <div className="flex justify-between items-start mb-4">
@@ -56,7 +56,7 @@ const JobCard = ({ job, score, userRole, onClick }) => {
         <p className="text-sky-500 text-sm mb-4 font-medium">{job.company}</p>
       </div>
       
-      <div className="flex items-center gap-4 text-sky-400 text-xs border-t pt-4 mt-4">
+          <div className={`flex items-center gap-4 text-xs border-t pt-4 mt-4 ${darkMode ? 'text-slate-400 border-slate-700' : 'text-sky-400'}`}>
         <div className="flex items-center gap-1 font-semibold text-sky-500">
           <MapPin className="w-3 h-3 text-sky-500" />
           {job.city}
@@ -77,12 +77,19 @@ export function JobList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [userRole, setUserRole] = useState(null);
-  const [candidateProfile, setCandidateProfile] = useState(null); // Stocke les compétences/ville du candidat
+  const [candidateProfile, setCandidateProfile] = useState(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('camerwork-dark') === 'true');
 
   const CAMEROON_CITIES = [
     "Toutes les villes", "Douala", "Yaoundé", "Garoua", "Maroua", 
     "Bafoussam", "Bamenda", "Ngaoundéré", "Nkongsamba", "Kribi", "Limbe"
   ];
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    localStorage.setItem('camerwork-dark', next);
+  };
 
   const handleLogout = async () => {
     try {
@@ -156,18 +163,24 @@ export function JobList() {
     .sort((a, b) => b.matchingScore - a.matchingScore);
 
   return (
-    <div className="min-h-screen bg-sky-50 font-sans pb-32">
+    <div className={`min-h-screen font-sans pb-32 ${darkMode ? 'bg-slate-900 text-slate-200' : 'bg-sky-50 text-sky-800'}`}>
       {/* Header */}
       <div className="bg-gradient-to-br from-sky-600 via-sky-700 to-sky-900 text-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
           <div className="flex justify-between items-start">
-            <div className="flex items-center space-x-3 mb-4">
-               <Briefcase className="w-6 h-6 text-cyan-400" />
+            <div className="flex items-center gap-3 mb-4">
+               <div className="relative w-8 h-8 bg-gradient-to-br from-sky-400 via-cyan-400 to-teal-400 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer">
+                 <span className="font-black text-sm tracking-tighter text-white leading-none">CW</span>
+                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-white rounded-full shadow-sm"></div>
+               </div>
                <span className="uppercase tracking-widest text-[10px] font-black text-sky-200">Plateforme CamerWork</span>
             </div>
-            <button onClick={handleLogout} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
-              <LogOut size={18} />
-            </button>
+             <button onClick={toggleDarkMode} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all" title={darkMode ? 'Mode clair' : 'Mode nuit'}>
+               {darkMode ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
+             </button>
+             <button onClick={handleLogout} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
+               <LogOut size={18} />
+             </button>
           </div>
           
           <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
@@ -225,6 +238,7 @@ export function JobList() {
                 job={job} 
                 score={job.matchingScore}
                 userRole={userRole}
+                darkMode={darkMode}
                 onClick={() => navigate(`/offres/${job.id}`)}
               />
             ))}
@@ -240,7 +254,7 @@ export function JobList() {
       </div>
 
       {/* Navigation Basse (Fixée) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-sky-200 px-6 py-4 z-50 flex justify-around shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <div className={`fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-6 py-4 z-50 flex justify-around ${darkMode ? 'bg-slate-800/95 border-slate-700' : 'bg-white/90 border-sky-200'} shadow-[0_-10px_40px_rgba(0,0,0,0.05)]`}>
         <button onClick={() => navigate('/offres')} className="flex flex-col items-center gap-1 text-cyan-600 transition-transform active:scale-90">
           <Briefcase size={24} />
           <span className="text-[10px] font-black uppercase">Offres</span>

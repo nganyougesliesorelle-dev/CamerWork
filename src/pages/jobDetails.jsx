@@ -6,7 +6,7 @@ import { db, auth } from '../firebase/firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; 
 
 // Import de la fonction de service que nous avons centralisée
-import { applyToJob } from '../firebase/authService'; 
+import { applyToJob, cancelApplication } from '../firebase/authService'; 
 
 const getTypeColor = (type) => {
   const t = type?.toLowerCase();
@@ -299,8 +299,27 @@ export function JobDetails() {
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-50">
         <div className="bg-white/80 backdrop-blur-xl border border-white shadow-2xl p-4 rounded-[2.5rem] flex items-center gap-4">
           {hasApplied && !job.isScraped ? (
-            <div className="w-full bg-teal-50 text-teal-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3">
-               <UserCheck size={20} /> CANDIDATURE ENVOYÉE
+            <div className="w-full flex items-center gap-2">
+              <div className="flex-1 bg-teal-50 text-teal-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3 text-sm">
+                <UserCheck size={20} /> CANDIDATURE ENVOYÉE
+              </div>
+              <button
+                onClick={async () => {
+                  if (window.confirm("Annuler cette candidature ?")) {
+                    const result = await cancelApplication(job.id, auth.currentUser.uid);
+                    if (result.success) {
+                      setHasApplied(false);
+                      toast.success("Candidature annulée.");
+                    } else {
+                      toast.error(result.error || "Erreur");
+                    }
+                  }
+                }}
+                className="p-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs hover:bg-red-100 transition-all shrink-0"
+                title="Annuler ma candidature"
+              >
+                <XCircle size={20} />
+              </button>
             </div>
           ) : userRole === 'recruiter' ? (
             <div className="w-full bg-sky-100 text-sky-400 py-4 rounded-2xl font-black text-center text-sm uppercase">
