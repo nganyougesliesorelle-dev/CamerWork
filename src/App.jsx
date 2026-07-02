@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { messaging, db, auth } from './firebase/firebaseConfig';
 import { onMessage } from 'firebase/messaging';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -8,8 +9,8 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { toast } from 'sonner';
 
 // Imports de tes pages et composants
-import { LandingPage } from './pages/LandingPage'; // AJOUTÉ : Ta nouvelle page vitrine
-import Home from './pages/Home'; // C'est ton ancien composant avec le formulaire d'auth
+import { LandingPage } from './pages/LandingPage';
+import Home from './pages/Home';
 import { JobList } from './pages/joblist';
 import { Profile } from './pages/Profile'; 
 import { DashboardRecruiter } from './pages/DashboardRecruiter';
@@ -18,10 +19,12 @@ import { JobDetails } from './pages/jobDetails';
 import { Chat } from './pages/Chat';
 import { AtsCv } from './pages/AtsCv';
 import { InterviewSimulator } from './pages/InterviewSimulator';
+import { CandidateDashboard } from './pages/CandidateDashboard';
 import { Notifications } from './composants/Notifications';
 import { LangProvider } from './composants/LangContext';
 
 function App() {
+  const { t } = useTranslation();
   const [globalUser, setGlobalUser] = useState(null);
   const prevAppsRef = useRef({});
 
@@ -50,19 +53,25 @@ function App() {
               const chatId = `${data.recruiterId || ''}_${data.candidateId}_${change.doc.id}`;
               toast.success(
                 <div>
-                  <strong>🎉 Candidature retenue !</strong>
-                  <p className="text-xs mt-1">{data.jobTitle} chez {data.company}</p>
+                  <strong>{t('notifications.application_accepted_title')}</strong>
+                  <p className="text-xs mt-1">{data.jobTitle} {t('common.at')} {data.company}</p>
                   <button 
                     onClick={() => window.location.href = `/chat/${chatId}`}
                     className="mt-2 px-3 py-1 bg-teal-500 text-white rounded-lg text-xs font-bold"
                   >
-                    Accéder au chat
+                    {t('chat.title')}
                   </button>
                 </div>,
                 { duration: 8000 }
               );
             } else if (data.status === "rejected" || data.status === "refusé") {
-              toast.error(`💼 "${data.jobTitle}" : candidature non retenue.`, { duration: 5000 });
+              toast.error(
+                t('notifications.application_rejected_body', { 
+                  jobTitle: data.jobTitle, 
+                  company: data.company 
+                }), 
+                { duration: 5000 }
+              );
             }
           }
           prevAppsRef.current[change.doc.id] = data;
@@ -72,7 +81,7 @@ function App() {
       });
     });
     return () => unsub();
-  }, [globalUser]);
+  }, [globalUser, t]);
 
   // Gestionnaire de notifications push en premier plan
   useEffect(() => {
@@ -84,13 +93,13 @@ function App() {
         if (Notification.permission === 'granted') {
           new Notification(title, { body, icon: '/logo.png' });
         }
-        toast.info(body || title, { description: 'Nouvelle notification' });
+        toast.info(body || title, { description: t('notifications.new_notification') });
       });
       return () => unsubscribe();
     } catch (_e) {
       // messaging non supporté
     }
-  }, []);
+  }, [t]);
 
   return (
     <LangProvider>
@@ -129,6 +138,7 @@ function App() {
         {/* 5b. Outils Candidat */}
         <Route path="/cv-generator" element={<AtsCv />} />
         <Route path="/interview-simulator" element={<InterviewSimulator />} />
+        <Route path="/career-dashboard" element={<CandidateDashboard />} />
 
         {/* 6. Espace Recruteur */}
         <Route path="/DashboardRecruiter" element={<DashboardRecruiter />} /> 

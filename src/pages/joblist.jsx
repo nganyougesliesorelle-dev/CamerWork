@@ -6,6 +6,8 @@ import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/fi
 import { signOut } from 'firebase/auth'; 
 import { toast } from 'sonner';
 import { calculateMatchingScore } from "../firebase/matchingEngine";
+import { useTranslation } from 'react-i18next';
+import { useLang } from '../composants/LangContext';
 // Composant Carte d'Offre avec Badge de Correspondance Intelligent
 const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
   const formatDate = (timestamp) => {
@@ -71,33 +73,28 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
 };
 
 export function JobList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const { darkMode, toggleDarkMode } = useLang();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [userRole, setUserRole] = useState(null);
   const [candidateProfile, setCandidateProfile] = useState(null);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('camerwork-dark') === 'true');
 
   const CAMEROON_CITIES = [
     "Toutes les villes", "Douala", "Yaoundé", "Garoua", "Maroua", 
     "Bafoussam", "Bamenda", "Ngaoundéré", "Nkongsamba", "Kribi", "Limbe"
   ];
 
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    localStorage.setItem('camerwork-dark', next);
-  };
-
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      toast.success("Déconnexion réussie");
+      toast.success(t('notifications.success_logout'));
       navigate('/');
     } catch (_error) {
-      toast.error("Erreur lors de la déconnexion");
+      toast.error(t('notifications.error_logout'));
     }
   };
 

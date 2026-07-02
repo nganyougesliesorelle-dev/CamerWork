@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Transition fluide mode nuit */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+html.dark {
+  color-scheme: dark;
+}

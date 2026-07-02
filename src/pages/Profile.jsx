@@ -11,6 +11,7 @@ import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy }
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { uploadCV } from '../firebase/authService'; 
 import { calculateMatchingScore } from '../firebase/matchingEngine';
 import { requestNotificationPermission } from '../firebase/notificationService';
@@ -23,6 +24,7 @@ const CAMEROON_CITIES = [
 ];
 
 export function Profile() {
+  const { t } = useTranslation();
   const { id } = useParams(); 
   const navigate = useNavigate();
   const avatarInputRef = useRef(null);
@@ -110,7 +112,7 @@ export function Profile() {
         }
       } catch (error) {
         console.error("Erreur profil:", error);
-        toast.error("Erreur de chargement");
+        toast.error(t('profile.loading_error'));
       } finally {
         setLoading(false);
       }
@@ -133,9 +135,9 @@ export function Profile() {
             if (change.type === "modified") {
               const appData = change.doc.data();
               if (appData.status === "accepted" || appData.status === "retenu") {
-                toast.success(`🎉 Candidature retenue pour "${appData.jobTitle}" !`, { duration: 5000 });
+                toast.success(t('notifications.application_accepted_title', { jobTitle: appData.jobTitle }), { duration: 5000 });
               } else if (appData.status === "rejected" || appData.status === "refusé") {
-                toast.error(`💼 "${appData.jobTitle}" : candidature non retenue.`, { duration: 5000 });
+                toast.error(t('notifications.application_rejected_body', { jobTitle: appData.jobTitle, company: '' }), { duration: 5000 });
               }
             }
           });
@@ -167,7 +169,7 @@ export function Profile() {
   }, [id, isMyProfile]);
 
   const handleSave = async () => {
-    if (!auth.currentUser) return toast.error("Vous devez être connecté");
+    if (!auth.currentUser) return toast.error(t('profile.must_login'));
     
     try {
       const docRef = doc(db, "users", auth.currentUser.uid);
@@ -184,9 +186,9 @@ export function Profile() {
         portfolioUrls: candidate.portfolioUrls || [],
       });
       setIsEditing(false);
-      toast.success('Profil mis à jour avec succès !');
+      toast.success(t('notifications.success_profile_saved'));
     } catch (_error) {
-      toast.error("Erreur lors de la sauvegarde");
+      toast.error(t('profile.save_error'));
     }
   };
 
@@ -202,9 +204,9 @@ export function Profile() {
       setCandidate({ ...candidate, photoURL: result.url });
       try {
         await updateDoc(doc(db, "users", auth.currentUser.uid), { photoURL: result.url });
-        toast.success("Photo de profil mise à jour !");
+        toast.success(t('notifications.success_avatar'));
       } catch (_err) {
-        toast.error("Erreur d'enregistrement de l'image");
+        toast.error(t('profile.image_error'));
       }
     }
   };
@@ -220,7 +222,7 @@ export function Profile() {
     try {
       for (const file of files) {
         if (!file.type.startsWith('image/')) {
-          toast.error(`${file.name} n'est pas une image`);
+          toast.error(`${file.name} ${t('profile.not_image')}`);
           continue;
         }
         const storageRef = ref(storage, `portfolios/${auth.currentUser.uid}_${Date.now()}_${file.name}`);
@@ -231,9 +233,9 @@ export function Profile() {
       
       setCandidate({ ...candidate, portfolioUrls: newUrls });
       await updateDoc(doc(db, "users", auth.currentUser.uid), { portfolioUrls: newUrls });
-      toast.success(`${files.length} image(s) ajoutée(s) au portfolio !`);
+      toast.success(`${files.length} ${t('profile.portfolio_added')}`);
     } catch (_err) {
-      toast.error("Erreur lors de l'upload du portfolio");
+      toast.error(t('profile.portfolio_error'));
     } finally {
       setUploadingPortfolio(false);
       if (portfolioInputRef.current) portfolioInputRef.current.value = '';
@@ -245,16 +247,16 @@ export function Profile() {
     setCandidate({ ...candidate, portfolioUrls: newUrls });
     try {
       await updateDoc(doc(db, "users", auth.currentUser.uid), { portfolioUrls: newUrls });
-      toast.success("Image retirée du portfolio");
+      toast.success(t('profile.portfolio_removed'));
     } catch (_err) {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t('profile.portfolio_remove_error'));
     }
   };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.type !== "application/pdf") return toast.error("Seuls les fichiers PDF sont acceptés");
+    if (file.type !== "application/pdf") return toast.error(t('profile.pdf_only'));
 
     setUploading(true);
     const result = await uploadCV(file, auth.currentUser.uid);
@@ -262,7 +264,7 @@ export function Profile() {
 
     if (result.success) {
       setCandidate({ ...candidate, cvUrl: result.url, cvName: file.name });
-      toast.success("CV mis en ligne avec succès !");
+      toast.success(t('notifications.success_cv_uploaded'));
     }
   };
 
@@ -286,10 +288,10 @@ export function Profile() {
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      toast.success("Déconnexion réussie !");
+      toast.success(t('notifications.success_logout'));
       navigate('/');
     } catch (_err) {
-      toast.error("Erreur lors de la déconnexion.");
+      toast.error(t('notifications.error_logout'));
     }
   };
 
@@ -297,7 +299,7 @@ export function Profile() {
     <div className="min-h-screen flex items-center justify-center bg-sky-50">
       <div className="flex flex-col items-center gap-3">
         <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sky-500 font-medium text-sm">Chargement du profil...</p>
+        <p className="text-sky-500 font-medium text-sm">{t('profile.loading')}</p>
       </div>
     </div>
   );
@@ -305,9 +307,9 @@ export function Profile() {
   if (!candidate) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 p-6 text-center">
       <User size={64} className="text-sky-300 mb-4" />
-      <h2 className="text-2xl font-black text-sky-800 mb-2">Profil introuvable</h2>
+      <h2 className="text-2xl font-black text-sky-800 mb-2">{t('profile.not_found')}</h2>
       <button onClick={() => navigate('/offres')} className="bg-cyan-500 text-white px-8 py-3 rounded-2xl font-black mt-4 shadow-lg hover:bg-cyan-600 transition-all">
-        Retour aux offres
+        {t('profile.back_to_offers')}
       </button>
     </div>
   );
@@ -331,7 +333,7 @@ export function Profile() {
             onClick={() => navigate(-1)} 
             className="mb-6 flex items-center gap-2 text-sky-300 hover:text-white transition-colors font-bold text-sm"
           >
-            <ArrowLeft size={18} /> Retour
+            <ArrowLeft size={18} /> {t('common.back')}
           </button>
           <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
             {/* Avatar dans le header */}
@@ -363,7 +365,7 @@ export function Profile() {
                   {candidate.displayName || candidate.fullName || "Utilisateur"}
                 </h1>
                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                  {candidate.role === 'recruiter' ? 'Recruteur' : 'Candidat'}
+                  {candidate.role === 'recruiter' ? t('profile.recruiter') : t('profile.candidate')}
                 </span>
               </div>
               <p className="text-sky-300 text-sm font-medium flex items-center gap-2">
@@ -390,14 +392,14 @@ export function Profile() {
                       : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
                   }`}
                 >
-                  {isEditing ? 'Annuler' : 'Modifier'}
+                  {isEditing ? t('profile.cancel') : t('profile.edit')}
                 </button>
                 {isEditing && (
                   <button
                     onClick={handleSave}
                     className="px-4 py-2.5 bg-cyan-500 text-white rounded-xl text-xs font-black hover:bg-cyan-400 transition-all flex items-center gap-1.5"
                   >
-                    <Save size={14} /> Enregistrer
+                    <Save size={14} /> {t('profile.save')}
                   </button>
                 )}
               </div>
@@ -588,7 +590,8 @@ export function Profile() {
               </div>
             )}
 
-            {/* Suggestions */}
+            {/* Suggestions — visible uniquement par le propriétaire */}
+            {isMyProfile && (
             <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
@@ -626,8 +629,10 @@ export function Profile() {
                 ))}
               </div>
             </div>
+            )}
 
-            {/* Déconnexion */}
+            {/* Déconnexion — visible uniquement par le propriétaire */}
+            {isMyProfile && (
             <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-3">
               <button 
                 onClick={handleLogout}
@@ -640,13 +645,14 @@ export function Profile() {
                 <ChevronRight size={15} />
               </button>
             </div>
+            )}
           </div>
 
           {/* ===== RIGHT COLUMN (2/3) ===== */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* Dashboard Stats */}
-            {isCandidateUser && (
+            {/* Dashboard Stats — visible uniquement par le propriétaire */}
+            {isMyProfile && isCandidateUser && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
@@ -796,7 +802,7 @@ export function Profile() {
                   <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Email</span>
                   <span className="text-sm font-bold text-sky-800 truncate block">{candidate.email}</span>
                 </div>
-                {isCandidateUser && (
+                {isMyProfile && isCandidateUser && (
                   <>
                     <div className="bg-sky-50 rounded-xl p-3">
                       <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Genre</span>
@@ -811,7 +817,8 @@ export function Profile() {
               </div>
             </div>
 
-            {/* Charts */}
+            {/* Charts — visible uniquement par le propriétaire */}
+            {isMyProfile && (
             <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
               <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
                 <TrendingUp size={14} className="text-cyan-500" /> Postulations & Recruteurs
@@ -829,6 +836,7 @@ export function Profile() {
                 </ResponsiveContainer>
               </div>
             </div>
+            )}
 
           </div>
         </div>

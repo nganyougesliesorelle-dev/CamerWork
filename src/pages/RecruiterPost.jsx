@@ -3,6 +3,7 @@ import { Building, MapPin, FileText, Briefcase, PlusCircle, Trash2, CheckCircle2
 import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
+import { useTranslation } from 'react-i18next';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { dispatchJobOpportunities } from '../firebase/authService'; 
 
@@ -12,19 +13,20 @@ const CAMEROON_CITIES = [
   "Kribi", "Limbe", "Dschang", "Foumban"
 ];
 
-const STEPS = [
-  { id: 1, label: 'Infos générales', icon: Briefcase },
-  { id: 2, label: 'Description & Compétences', icon: FileText },
-  { id: 3, label: 'Contrat & Localisation', icon: MapPin },
-];
-
 export function RecruiterPost() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [showPreview, setShowPreview] = useState(false);
   const [skillInput, setSkillInput] = useState('');
+
+const STEPS = [
+  { id: 1, label: t('recruiter.step1_label'), icon: Briefcase },
+  { id: 2, label: t('recruiter.step2_label'), icon: FileText },
+  { id: 3, label: t('recruiter.step3_label'), icon: MapPin },
+];
 
   const editJob = location.state?.editJob;
 
@@ -77,8 +79,8 @@ export function RecruiterPost() {
     }
 
     const user = auth.currentUser;
-    if (!user) return toast.error("Connectez-vous.");
-    if (formData.missions.filter(m => m.trim()).length === 0) return toast.error("Ajoutez au moins une mission.");
+    if (!user) return toast.error(t('recruiter.must_login'));
+    if (formData.missions.filter(m => m.trim()).length === 0) return toast.error(t('recruiter.add_mission'));
 
     setLoading(true);
     try {
@@ -97,14 +99,14 @@ export function RecruiterPost() {
       if (editJob) {
         await updateDoc(doc(db, "jobs", editJob.id), payload);
         await dispatchJobOpportunities({ id: editJob.id, ...payload });
-        toast.success('Offre mise à jour !');
+        toast.success(t('notifications.success_job_updated'));
       } else {
         const docRef = await addDoc(collection(db, "jobs"), { ...payload, status: 'open', createdAt: serverTimestamp() });
         await dispatchJobOpportunities({ id: docRef.id, ...payload });
-        toast.success('Offre publiée !');
+        toast.success(t('notifications.success_job_posted'));
       }
       setTimeout(() => navigate('/DashboardRecruiter'), 1500);
-    } catch (error) { toast.error("Erreur lors de l'enregistrement."); }
+    } catch (error) { toast.error(t('notifications.error_job_save')); }
     finally { setLoading(false); }
   };
 
@@ -122,12 +124,12 @@ export function RecruiterPost() {
         <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
           <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-2 text-sky-300 hover:text-white transition-colors font-bold text-sm">
-            <ArrowLeft size={18} /> Retour
+            <ArrowLeft size={18} /> {t('recruiter.back')}
           </button>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">
-            {editJob ? "Modifier l'offre" : "Créer une offre"}
+            {editJob ? t('recruiter.edit_offer') : t('recruiter.create_offer')}
           </h1>
-          <p className="text-sky-300 text-sm mt-1">Trouvez les meilleurs talents du Cameroun</p>
+          <p className="text-sky-300 text-sm mt-1">{t('recruiter.subtitle')}</p>
         </div>
       </div>
 
@@ -161,12 +163,12 @@ export function RecruiterPost() {
                     <Briefcase size={18} className="text-cyan-500" /> Informations générales
                   </h2>
                   <div>
-                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Titre du poste *</label>
+                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.title_label')}</label>
                     <input required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})}
                       className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm" placeholder="ex: Développeur Fullstack React" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Entreprise *</label>
+                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.company_label')}</label>
                     <input required value={formData.company} onChange={(e) => setFormData({...formData, company: e.target.value})}
                       className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm" placeholder="Votre entreprise" />
                   </div>
@@ -181,14 +183,14 @@ export function RecruiterPost() {
                   </h2>
                   
                   <div>
-                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Description du poste</label>
+                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.description_label')}</label>
                     <textarea rows={4} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}
                       className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-medium text-sm resize-none" placeholder="Décrivez le poste, les responsabilités..." />
                   </div>
 
                   {/* Tags de compétences */}
                   <div>
-                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Compétences requises (tags)</label>
+                    <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.skills_label')}</label>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {formData.skills.map((skill, i) => (
                         <span key={i} className="flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-cyan-100">
@@ -201,15 +203,15 @@ export function RecruiterPost() {
                       <input value={skillInput} onChange={(e) => setSkillInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
                         className="flex-1 p-3 bg-sky-50 border border-sky-100 rounded-xl outline-none focus:border-cyan-500 text-sky-800 text-sm font-medium" placeholder="React, Node.js, Firebase..." />
-                      <button type="button" onClick={addSkill} className="px-4 bg-cyan-500 text-white rounded-xl font-black text-xs hover:bg-cyan-600 transition-all">Ajouter</button>
+                      <button type="button" onClick={addSkill} className="px-4 bg-cyan-500 text-white rounded-xl font-black text-xs hover:bg-cyan-600 transition-all">{t('recruiter.add')}</button>
                     </div>
                   </div>
 
                   {/* Missions */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-black text-sky-400 uppercase">Missions</label>
-                      <button type="button" onClick={() => addField('missions')} className="text-cyan-500 text-[10px] font-black flex items-center gap-1"><PlusCircle size={12} /> Ajouter</button>
+                      <label className="text-[10px] font-black text-sky-400 uppercase">{t('recruiter.missions_label')}</label>
+                      <button type="button" onClick={() => addField('missions')} className="text-cyan-500 text-[10px] font-black flex items-center gap-1"><PlusCircle size={12} /> {t('recruiter.add')}</button>
                     </div>
                     {formData.missions.map((m, i) => (
                       <div key={i} className="flex gap-2 mb-2">
@@ -230,7 +232,7 @@ export function RecruiterPost() {
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Type de contrat</label>
+                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.contract_label')}</label>
                       <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})}
                         className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm cursor-pointer">
                         <option value="CDI">CDI</option><option value="CDD">CDD</option>
@@ -238,14 +240,14 @@ export function RecruiterPost() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Ville</label>
+                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.city_label')}</label>
                       <select value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})}
                         className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm cursor-pointer">
                         {CAMEROON_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Salaire ({formData.period})</label>
+                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.salary_label')} ({formData.period})</label>
                       <div className="relative">
                         <input value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})}
                           className="w-full p-4 pr-16 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm" placeholder="250 000" />
@@ -253,7 +255,7 @@ export function RecruiterPost() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">Période</label>
+                      <label className="text-[10px] font-black text-sky-400 uppercase mb-1.5 block">{t('recruiter.period_label')}</label>
                       <select value={formData.period} onChange={(e) => setFormData({...formData, period: e.target.value})}
                         className="w-full p-4 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-500 text-sky-800 font-bold text-sm cursor-pointer">
                         <option value="Mensuel">Mensuel</option><option value="Annuel">Annuel</option>
@@ -267,22 +269,22 @@ export function RecruiterPost() {
               <div className="flex items-center justify-between gap-3">
                 <button type="button" onClick={() => setStep(Math.max(1, step - 1))}
                   className={`px-5 py-3 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${step === 1 ? 'invisible' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}>
-                  <ChevronLeft size={16} /> Précédent
+                  <ChevronLeft size={16} /> {t('recruiter.previous')}
                 </button>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setShowPreview(!showPreview)}
                     className="px-4 py-3 bg-sky-100 text-sky-600 rounded-xl text-xs font-black flex items-center gap-1.5 hover:bg-sky-200 transition-all">
-                    <Eye size={14} /> {showPreview ? 'Cacher' : 'Aperçu'}
+                    <Eye size={14} /> {showPreview ? t('recruiter.hide') : t('recruiter.preview')}
                   </button>
                   {step < 3 ? (
                     <button type="button" onClick={() => canNext() && setStep(step + 1)}
                       className={`px-5 py-3 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${canNext() ? 'bg-cyan-500 text-white hover:bg-cyan-600' : 'bg-sky-100 text-sky-400 cursor-not-allowed'}`}>
-                      Suivant <ChevronRight size={16} />
+                      {t('recruiter.next')} <ChevronRight size={16} />
                     </button>
                   ) : (
                     <button type="submit" disabled={loading}
                       className="px-6 py-3 bg-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 hover:bg-cyan-600 transition-all">
-                      <Send size={14} /> {loading ? 'Publication...' : editJob ? 'Mettre à jour' : 'Publier l\'offre'}
+                      <Send size={14} /> {loading ? t('recruiter.publishing') : editJob ? t('recruiter.update') : t('recruiter.publish')}
                     </button>
                   )}
                 </div>
@@ -296,7 +298,7 @@ export function RecruiterPost() {
             <div className="lg:col-span-1">
               <div className="bg-white rounded-2xl shadow-sm border border-cyan-200 p-5 sticky top-4">
                 <h3 className="text-xs font-black text-cyan-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                  <Eye size={14} /> Aperçu côté candidat
+                  <Eye size={14} /> {t('recruiter.candidate_preview')}
                 </h3>
                 <div className="space-y-3 text-sm">
                   <div>

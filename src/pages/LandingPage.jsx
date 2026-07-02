@@ -1,11 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { ArrowRight, Sparkles, CheckCircle2, MessageSquare, Briefcase, Zap } from 'lucide-react';
 import { useLang } from '../composants/LangContext';
+import { LanguageSwitcher } from '../composants/boutons';
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { lang, setLang, t } = useLang();
+  const { t } = useTranslation();
+  const { darkMode, toggleDarkMode } = useLang();
 
   return (
     <div className="min-h-screen bg-sky-50 font-sans antialiased text-sky-800 flex flex-col justify-between">
@@ -27,19 +30,21 @@ export function LandingPage() {
 
           {/* Langue + Connexion à droite */}
           <div className="flex items-center gap-3">
-            <button onClick={() => setLang('fr')} className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${lang === 'fr' ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`}>🇫🇷</button>
-            <button onClick={() => setLang('en')} className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${lang === 'en' ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`}>🇬🇧</button>
+            <LanguageSwitcher variant="icon" />
+            <button onClick={toggleDarkMode} className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${darkMode ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`} title={darkMode ? 'Mode clair' : 'Mode nuit'}>
+              {darkMode ? '☀️' : '🌙'}
+            </button>
             <button 
               onClick={() => navigate('/login')} 
               className="text-sm font-semibold text-sky-600 hover:text-sky-600 transition-colors"
             >
-              {t('connexion')}
+              {t('auth.connexion')}
             </button>
             <button 
               onClick={() => navigate('/login')} 
               className="bg-sky-900 hover:bg-sky-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all active:scale-95 hidden sm:block"
             >
-              {t('essaiGratuit')}
+              {t('auth.essai_gratuit')}
             </button>
           </div>
         </div>
@@ -57,18 +62,18 @@ export function LandingPage() {
             
             <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md text-sky-300 px-3 py-1.5 rounded-full text-xs font-semibold border border-white/5">
               <Sparkles size={12} className="animate-pulse text-sky-400" />
-              {lang === 'fr' ? 'Propulsé par un moteur de matching intelligent' : 'Powered by an intelligent matching engine'}
+              {t('landing.badge')}
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15]">
-              {lang === 'fr' ? 'Conçu pour les jeunes.' : 'Designed for the youth.'}<br />
+              {t('landing.title1')}<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-cyan-400">
-                {lang === 'fr' ? "Optimisé dans la recherche d'emploi et combler le vide du manque d'information." : 'Optimized for job searching and bridging the information gap.'}
+                {t('landing.title2')}
               </span>
             </h1>
 
             <p className="text-sky-300 text-sm sm:text-base font-medium max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              {lang === 'fr' ? <>Connectez votre profil, découvrez instantanément votre <span className="text-sky-300 font-semibold">New.work</span> et discutez en direct avec les entreprises via nos salons de pré-entretien automatisés.</> : <>Connect your profile, instantly discover your <span className="text-sky-300 font-semibold">New.work</span> and chat directly with companies through our automated pre-interview rooms.</>}
+              <Trans i18nKey="landing.subtitle" components={{ 1: <span className="text-sky-300 font-semibold" /> }} />
             </p>
 
             {/* Bouton Google uniquement */}
@@ -83,12 +88,12 @@ export function LandingPage() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                {lang === 'fr' ? "S'inscrire avec Google" : 'Sign up with Google'}
+                {t('landing.cta_google')}
               </button>
             </div>
 
             <p className="text-xs text-sky-400 font-medium text-center lg:text-left">
-              {lang === 'fr' ? 'Rejoignez la communauté CamerWork gratuitement.' : 'Join the CamerWork community for free.'}
+              {t('landing.footer_text')}
             </p>
           </div>
 

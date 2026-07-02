@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck, ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
@@ -17,6 +18,7 @@ const getTypeColor = (type) => {
 };
 
 export function JobDetails() {
+  const { t } = useTranslation();
   const { id } = useParams(); 
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
@@ -88,7 +90,7 @@ export function JobDetails() {
             if (!querySnapshot.empty) setHasApplied(true);
           }
         } else {
-          toast.error("Offre introuvable");
+          toast.error(t('jobs.not_found'));
           navigate('/offres');
         }
       } catch (error) {
@@ -103,7 +105,7 @@ export function JobDetails() {
 
   const handleApply = async () => {
     if (job?.isScraped && job?.sourceUrl) {
-      toast.info("Redirection vers le site partenaire...");
+      toast.info(t('jobs.redirecting_partner'));
       window.open(job.sourceUrl, "_blank", "noopener,noreferrer");
       return; 
     }
@@ -111,12 +113,12 @@ export function JobDetails() {
     const user = auth.currentUser;
     
     if (!user) {
-      toast.error("Connexion requise", { description: "Connecte-toi pour postuler." });
+      toast.error(t('jobs.login_required'), { description: t('jobs.login_to_apply') });
       return;
     }
 
     if (userRole === 'recruiter') {
-      toast.error("Action impossible", { description: "Un compte recruteur ne peut pas postuler." });
+      toast.error(t('jobs.action_impossible'), { description: t('jobs.recruiter_cannot_apply') });
       return;
     }
 
@@ -125,8 +127,8 @@ export function JobDetails() {
 
       if (result.success) {
         setHasApplied(true);
-        toast.success('Candidature envoyée !', {
-          description: `Ton profil est maintenant chez ${job?.company}.`,
+        toast.success(t('notifications.success_application'), {
+          description: `${t('common.at')} ${job?.company}`,
         });
 
         const userSnap = await getDoc(doc(db, "users", user.uid));
@@ -146,7 +148,7 @@ export function JobDetails() {
         throw new Error(result.error);
       }
     } catch (_error) {
-      toast.error("Erreur", { description: "Impossible d'envoyer la candidature." });
+      toast.error(t('common.error'), { description: t('jobs.application_error') });
     }
   };
 
@@ -309,9 +311,9 @@ export function JobDetails() {
                     const result = await cancelApplication(job.id, auth.currentUser.uid);
                     if (result.success) {
                       setHasApplied(false);
-                      toast.success("Candidature annulée.");
+                      toast.success(t('notifications.success_cancelled'));
                     } else {
-                      toast.error(result.error || "Erreur");
+                      toast.error(result.error || t('common.error'));
                     }
                   }
                 }}

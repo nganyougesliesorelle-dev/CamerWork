@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase/firebaseConfig';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +7,7 @@ import { Bell, Sparkles, Briefcase, CheckCircle, Mail, Trash2, Eye } from 'lucid
 import { toast } from 'sonner';
 
 export function Notifications() {
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(!!auth.currentUser);
   const navigate = useNavigate();
@@ -69,9 +71,9 @@ export function Notifications() {
         batch.update(ref, { read: true });
       });
       await batch.commit();
-      toast.success("Toutes les notifications ont été marquées comme lues.");
+      toast.success(t('notifications.all_read'));
     } catch (_error) {
-      toast.error("Impossible de tout mettre à jour.");
+      toast.error(t('notifications.cannot_update'));
     }
   };
 
@@ -100,7 +102,7 @@ export function Notifications() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 p-4 text-center">
         <Mail size={48} className="text-sky-300 mb-4" />
-        <p className="text-sky-600 font-bold">Connecte-toi pour consulter ton centre d'alertes.</p>
+        <p className="text-sky-600 font-bold">{t('notifications.login_required')}</p>
       </div>
     );
   }
@@ -113,10 +115,10 @@ export function Notifications() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-black text-sky-900 uppercase tracking-tight flex items-center gap-3">
-              <Bell className="text-cyan-600" /> Centre d'alertes
+              <Bell className="text-cyan-600" /> {t('notifications.title')}
             </h1>
             <p className="text-sky-500 text-sm font-medium mt-1">
-              Suivi de tes opportunités de carrière et de tes candidatures au Cameroun.
+              {t('notifications.subtitle')}
             </p>
           </div>
           
@@ -125,7 +127,7 @@ export function Notifications() {
               onClick={markAllAsRead}
               className="text-xs font-black text-cyan-600 hover:text-sky-700 uppercase tracking-wider bg-sky-50 hover:bg-sky-100 px-4 py-2.5 rounded-xl transition-all self-start sm:self-center"
             >
-              Tout marquer comme lu
+              {t('notifications.mark_all_read')}
             </button>
           )}
         </div>
@@ -136,9 +138,9 @@ export function Notifications() {
             <div className="w-16 h-16 bg-sky-50 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Bell size={28} />
             </div>
-            <h3 className="text-lg font-black text-sky-800 uppercase mb-1">Aucune notification</h3>
+            <h3 className="text-lg font-black text-sky-800 uppercase mb-1">{t('notifications.empty_title')}</h3>
             <p className="text-sky-500 text-sm font-medium max-w-sm mx-auto">
-              Dès qu'un recruteur publiera une offre alignée avec tes compétences, l'analyse proactive s'affichera ici.
+              {t('notifications.empty_body')}
             </p>
           </div>
         ) : (
@@ -175,7 +177,7 @@ export function Notifications() {
                     </h4>
                     {notif.globalScore && (
                       <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-100 font-black text-[10px] rounded-lg tracking-wider shrink-0">
-                        MATCH {notif.globalScore}%
+                        {t('notifications.match')} {notif.globalScore}%
                       </span>
                     )}
                   </div>
@@ -188,11 +190,11 @@ export function Notifications() {
                     <span>
                       {notif.createdAt?.toDate ? new Date(notif.createdAt.toDate()).toLocaleDateString('fr-FR', {
                         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                      }) : "À l'instant"}
+                      }) : t('notifications.just_now')}
                     </span>
                     {notif.jobId && (
                       <span className="text-cyan-600 font-black flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                        <Eye size={12} /> Voir l'offre
+                        <Eye size={12} /> {t('notifications.view_offer')}
                       </span>
                     )}
                   </div>

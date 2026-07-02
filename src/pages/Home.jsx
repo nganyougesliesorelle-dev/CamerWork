@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { registerUser, loginUser, resetPassword } from '../firebase/authService'; 
 import { auth } from '../firebase/firebaseConfig';
 import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import { useLang } from '../composants/LangContext';
+import { LanguageSwitcher } from '../composants/boutons';
 
 const Home = () => {
-  const { lang, setLang, t } = useLang();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   
   const [isLoginMode, setIsLoginMode] = useState(false);
@@ -46,11 +47,11 @@ const Home = () => {
 
   const handleForgotPass = async () => {
     if (!email) {
-      toast.error("Veuillez entrer votre email d'abord.");
+      toast.error(t('notifications.enter_email'));
       return;
     }
     const result = await resetPassword(email.trim());
-    if (result.success) toast.success("Email de réinitialisation envoyé !");
+    if (result.success) toast.success(t('notifications.email_sent'));
     else toast.error(result.error);
   };
 
@@ -61,7 +62,7 @@ const Home = () => {
       const user = auth.currentUser;
       
       if (user?.emailVerified) {
-        toast.success("Compte validé avec succès ! Bienvenue.");
+        toast.success(t('notifications.success_verified'));
         setIsWaitingVerification(false);
         if (role === 'recruiter') {
           navigate('/DashboardRecruiter');
@@ -69,10 +70,10 @@ const Home = () => {
           navigate('/offres');
         }
       } else {
-        toast.error("Votre adresse e-mail n'a pas encore été validée. Vérifiez votre boîte de réception.");
+        toast.error(t('notifications.email_not_verified'));
       }
     } catch (_err) {
-      toast.error("Erreur lors de la vérification.");
+      toast.error(t('notifications.error_verification'));
     } finally {
       setLoading(false);
     }
@@ -82,15 +83,15 @@ const Home = () => {
     e.preventDefault();
     
     if (!isLoginMode && !agreeTerms) {
-      toast.error("Veuillez accepter les termes et conditions.");
+      toast.error(t('notifications.error_terms'));
       return;
     }
     if (!isLoginMode && fullName.length < 2) {
-      toast.error("Veuillez entrer un nom valide.");
+      toast.error(t('notifications.error_valid_name'));
       return;
     }
     if (password.length < 6) {
-      toast.error("Le mot de passe doit faire au moins 6 caractères.");
+      toast.error(t('notifications.error_password_short'));
       return;
     }
 
@@ -103,13 +104,13 @@ const Home = () => {
         const result = await loginUser(cleanEmail, password);
         if (result.success) {
           if (!auth.currentUser.emailVerified) {
-            toast.info("Veuillez valider votre adresse e-mail avant de vous connecter.");
+            toast.info(t('notifications.verify_email_first'));
             setIsWaitingVerification(true);
             setLoading(false);
             return;
           }
 
-          toast.success("Content de vous revoir !");
+          toast.success(t('notifications.success_login'));
           requestNotificationPermission(auth.currentUser.uid);
           if (result.role === 'recruiter') {
             navigate('/DashboardRecruiter'); 
@@ -117,19 +118,18 @@ const Home = () => {
             navigate('/offres');
           }
         } else {
-          toast.error(result.error || "Erreur de connexion");
+          toast.error(result.error || t('notifications.error_login'));
         }
       } else {
-        // Tu pourras ajouter country, phone, gender, birthDate, creationDate ici si ta fonction registerUser évolue !
         const result = await registerUser(cleanEmail, password, role, fullName);
         if (result.success) {
           if (auth.currentUser) {
             await sendEmailVerification(auth.currentUser);
-            toast.success("Un e-mail de confirmation vous a été envoyé !");
+            toast.success(t('notifications.success_register'));
             setIsWaitingVerification(true);
           }
         } else {
-          toast.error(result.error || "Erreur lors de l'inscription");
+          toast.error(result.error || t('notifications.error_missing_fields'));
         }
       }
     } catch (err) {
@@ -148,9 +148,9 @@ const Home = () => {
             <Mail size={28} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight">Confirmez votre e-mail</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{t('auth.confirmer_email')}</h2>
             <p className="text-sm text-sky-300 leading-relaxed">
-              Un lien d'activation a été envoyé à l'adresse <br />
+              {t('auth.lien_activation')} <br />
               <strong className="text-cyan-500 font-semibold">{email || auth.currentUser?.email}</strong>.
             </p>
           </div>
@@ -160,7 +160,7 @@ const Home = () => {
             onClick={handleCheckVerification} 
             className="w-full bg-cyan-500 hover:bg-cyan-600 text-[#082f49] font-bold py-3.5 rounded-xl transition-all shadow-lg active:scale-95"
           >
-            {loading ? "Vérification..." : "J'ai validé mon e-mail"}
+            {loading ? t('auth.verification') : t('auth.valider_email')}
           </button>
         </div>
       </div>
@@ -188,19 +188,14 @@ const Home = () => {
         onClick={() => navigate('/')} 
         className="absolute top-6 left-6 z-10 flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
       >
-        <ArrowLeft size={16} />             {t('retour')}
+        <ArrowLeft size={16} /> {t('auth.retour')}
       </button>
 
       <div className="w-full max-w-md mx-auto space-y-6 pt-8 relative z-10">
         
         {/* SÉLECTEUR DE LANGUE */}
-        <div className="flex justify-center gap-2">
-          <button onClick={() => setLang('fr')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${lang === 'fr' ? 'bg-cyan-500 text-white' : 'bg-[#075985] text-sky-400 border border-white/5'}`}>
-            🇫🇷 FR
-          </button>
-          <button onClick={() => setLang('en')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${lang === 'en' ? 'bg-cyan-500 text-white' : 'bg-[#075985] text-sky-400 border border-white/5'}`}>
-            🇬🇧 EN
-          </button>
+        <div className="flex justify-center">
+          <LanguageSwitcher variant="pill" />
         </div>
 
         {/* LOGO CW */}
@@ -214,10 +209,10 @@ const Home = () => {
         {/* TITRE PRINCIPAL */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight text-sky-100">
-            {isLoginMode ? t('connexion') : t('creerCompte')}
+            {isLoginMode ? t('auth.connexion') : t('auth.creer_compte')}
           </h1>
           <p className="text-xs text-sky-400 font-medium">
-            {isLoginMode ? t('heureuxRevoir') : t('remplirInfos')}
+            {isLoginMode ? t('auth.welcome_back') : t('auth.fill_info')}
           </p>
         </div>
 
@@ -229,14 +224,14 @@ const Home = () => {
               onClick={() => setRole('candidate')} 
               className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'candidate' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
             >
-               {t('candidat')}
+               {t('auth.candidat')}
              </button>
              <button 
                type="button" 
                onClick={() => setRole('recruiter')} 
                className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${role === 'recruiter' ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
              >
-               {t('recruteur')}
+               {t('auth.recruteur')}
             </button>
           </div>
         )}
@@ -250,35 +245,35 @@ const Home = () => {
               {role === 'candidate' ? (
                 /* ---- CHAMPS CANDIDAT ---- */
                 <>
-                  <input required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Nom" />
-                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Prénoms" />
-                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Pays" />
-                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="E-mail" />
-                  <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Télephone" />
+                  <input required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.nom')} />
+                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.prenoms')} />
+                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.pays')} />
+                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.email')} />
+                  <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.telephone')} />
 
                   {/* SÉLECTEUR GENRE INSPIRED BY IMAGE */}
                   <div className="flex items-center gap-4 py-1 text-sm font-medium text-sky-300">
-                    <span>{t('sexe')}</span>
-                    <button type="button" onClick={() => setGender('Masculin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Masculin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('masculin')}</button>
-                    <button type="button" onClick={() => setGender('Féminin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Féminin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('feminin')}</button>
+                    <span>{t('auth.sexe')}</span>
+                    <button type="button" onClick={() => setGender('Masculin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Masculin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('auth.masculin')}</button>
+                    <button type="button" onClick={() => setGender('Féminin')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gender === 'Féminin' ? 'bg-cyan-500 text-[#0c4a6e]' : 'bg-[#075985] border border-white/5'}`}>{t('auth.feminin')}</button>
                   </div>
 
               {/* DATE DE NAISSANCE */}
                    <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
-                     <span>{t('dateNaissance')}</span>
+                     <span>{t('auth.date_naissance')}</span>
                     <input required type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="px-4 py-2 bg-[#075985] border border-white/5 rounded-lg outline-none text-xs text-sky-200 focus:border-cyan-500" />
                   </div>
                 </>
               ) : (
                 /* ---- CHAMPS RECRUTEUR ---- */
                 <>
-                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Nom de l'entreprise" />
-                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Email de l'entreprise" />
-                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Pays" />
+                  <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.nom_entreprise')} />
+                  <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.email_entreprise')} />
+                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.pays')} />
                   
                   {/* DATE DE CRÉATION */}
                   <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">
-                    <span>Date de création</span>
+                    <span>{t('auth.date_creation')}</span>
                     <input required type="date" value={creationDate} onChange={(e) => setCreationDate(e.target.value)} className="px-4 py-2 bg-[#075985] border border-white/5 rounded-lg outline-none text-xs text-sky-200 focus:border-cyan-500" />
                   </div>
                 </>
@@ -289,10 +284,10 @@ const Home = () => {
           {/* ---- MODE CONNEXION : CHAMPS SIMPLES ---- */}
           {isLoginMode && (
             <>
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="E-mail" />
+              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.email')} />
               <div className="space-y-1">
                 <div className="flex justify-end">
-                  <button type="button" onClick={handleForgotPass} className="text-[10px] font-bold text-cyan-500 hover:underline uppercase tracking-wider">{t('oublie')}</button>
+                  <button type="button" onClick={handleForgotPass} className="text-[10px] font-bold text-cyan-500 hover:underline uppercase tracking-wider">{t('auth.oublie')}</button>
                 </div>
               </div>
             </>
@@ -300,7 +295,7 @@ const Home = () => {
 
           {/* MOT DE PASSE (Partagé par les deux modes) */}
           <div className="relative">
-            <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 pr-12 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="Mot de passe" />
+            <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 pr-12 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.mot_de_passe')} />
             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400 hover:text-cyan-400 transition-colors p-1" tabIndex={-1}>
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -311,7 +306,7 @@ const Home = () => {
             <label className="flex items-center gap-3 cursor-pointer pt-2 select-none">
               <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="accent-cyan-500 h-4 w-4 rounded-md" />
               <span className="text-xs text-sky-300 font-medium">
-                {t('accepterTermes')}
+                {t('auth.accepter_termes')}
               </span>
             </label>
           )}
@@ -322,14 +317,14 @@ const Home = () => {
             disabled={loading} 
             className="w-full bg-[#fca311] hover:bg-[#e5940e] text-[#0c4a6e] font-bold py-4 rounded-xl shadow-lg mt-4 transition-all active:scale-[0.98] uppercase tracking-wider text-sm disabled:bg-sky-700 disabled:text-sky-400"
           >
-            {loading ? t('charger') : (isLoginMode ? t('login') : t('commencerAventure'))}
+            {loading ? t('auth.chargement') : (isLoginMode ? t('auth.login') : t('auth.commencer'))}
           </button>
         </form>
 
         {/* LIEN DE COMMUTATION INTERACTION INTERNE */}
         <div className="text-center pt-2">
           <button onClick={() => setIsLoginMode(!isLoginMode)} className="text-cyan-500 font-bold hover:underline text-xs tracking-wide">
-            {isLoginMode ? t('nouveauCamerWork') : t('dejaCompte')}
+            {isLoginMode ? t('auth.nouveau') : t('auth.deja_compte')}
           </button>
         </div>
 

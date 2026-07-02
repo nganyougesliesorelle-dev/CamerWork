@@ -14,9 +14,11 @@
     "axios": "^1.16.1",
     "cheerio": "^1.2.0",
     "firebase": "^12.14.0",
+    "i18next": "^26.3.4",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^17.0.8",
     "react-router-dom": "^7.13.1",
     "recharts": "^3.9.1",
     "sonner": "^2.0.7"

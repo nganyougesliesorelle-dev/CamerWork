@@ -3,18 +3,21 @@ import {
   Briefcase, Users, CheckCircle, XCircle, ExternalLink, PlusCircle, 
   LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, MessageSquare, 
   LogOut, Search, Filter, Bell, Building, Sparkles, TrendingUp, 
-  Calendar, Eye, User, ChevronRight, BarChart3, Activity, CheckCheck, X
+  Calendar, Eye, User, ChevronRight, BarChart3, Activity, CheckCheck, X,
+  MapPin, Target
 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
 import { updateApplicationStatus } from '../firebase/authService';
-import { calculateMatchingScore } from '../firebase/matchingEngine';
-import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, getDoc, writeBatch } from 'firebase/firestore'; 
+import { calculateMatchingScore, reverseMatchCandidates } from '../firebase/matchingEngine';
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 export function DashboardRecruiter() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [myJobs, setMyJobs] = useState([]); 
@@ -27,6 +30,10 @@ export function DashboardRecruiter() {
   const [profileForm, setProfileForm] = useState({ displayName: '', company: '', phone: '', city: 'Yaoundé' });
   // eslint-disable-next-line no-unused-vars
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+  // Module 3 — Reverse Matching
+  const [selectedMatchJob, setSelectedMatchJob] = useState('');
+  const [topCandidates, setTopCandidates] = useState([]);
+  const [matchingLoading, setMatchingLoading] = useState(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -86,7 +93,7 @@ export function DashboardRecruiter() {
 
   const handleLogout = async () => {
     if (window.confirm("Voulez-vous vous déconnecter ?")) {
-      await signOut(auth); toast.success("Déconnexion réussie"); navigate('/');
+      await signOut(auth); toast.success(t('notifications.success_logout')); navigate('/');
     }
   };
 
@@ -106,13 +113,13 @@ export function DashboardRecruiter() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     await updateDoc(doc(db, "users", auth.currentUser.uid), profileForm);
-    toast.success("Profil mis à jour !"); setShowProfileEdit(false);
+    toast.success(t('notifications.success_profile_saved')); setShowProfileEdit(false);
   };
 
   const handleDeleteJob = async (jobId) => {
     if (window.confirm("Supprimer cette annonce définitivement ?")) {
       await deleteDoc(doc(db, "jobs", jobId));
-      toast.success("Annonce supprimée");
+      toast.success(t('jobs.deleted'));
     }
   };
 
@@ -121,9 +128,9 @@ export function DashboardRecruiter() {
     try {
       const apiStatus = newStatus === 'retenu' ? 'accepted' : 'rejected';
       const result = await updateApplicationStatus(app.id, app.candidateId, app.jobTitle, app.company || "Recruteur CamerWork", apiStatus, auth.currentUser.uid);
-      if (result.success) toast.success(`Candidat ${newStatus === 'retenu' ? 'accepté' : 'refusé'} !`);
-      else toast.error(result.error || "Erreur");
-    } catch (_e) { toast.error("Erreur de mise à jour"); }
+      if (result.success) toast.success(newStatus === 'retenu' ? t('notifications.candidate_accepted') : t('notifications.candidate_rejected'));
+      else toast.error(result.error || t('common.error'));
+    } catch (_e) { toast.error(t('jobs.update_error')); }
   };
 
   const getStatusBadge = (status) => {
@@ -174,8 +181,8 @@ export function DashboardRecruiter() {
     <div className="min-h-screen bg-sky-50 font-sans antialiased pb-20">
       
       {/* ─── HEADER ─── */}
-      <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
+      <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 text-white relative">
+        <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px] overflow-hidden"></div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -432,6 +439,93 @@ export function DashboardRecruiter() {
         </div>
 
       </div>
+
+      {/* ─── MODULE 3 : TOP TALENTS — REVERSE MATCHING ─── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-6">
+          <h2 className="text-sm font-black text-sky-800 uppercase tracking-wider flex items-center gap-2 mb-1">
+            <Target size={18} className="text-cyan-500" /> 🎯 Top Talents — Matching Intelligent
+          </h2>
+          <p className="text-xs text-sky-500 mb-4">Profils les plus compatibles avec vos offres récentes</p>
+
+          {/* Sélecteur d'offre */}
+          <select
+            value={selectedMatchJob}
+            onChange={async (e) => {
+              const jobId = e.target.value;
+              setSelectedMatchJob(jobId);
+              if (!jobId) { setTopCandidates([]); return; }
+              setMatchingLoading(true);
+              try {
+                const job = myJobs.find(j => j.id === jobId);
+                const q = query(collection(db, 'users'), where('role', 'in', ['candidate', 'candidat', 'student']));
+                const snap = await getDocs(q);
+                const candidates = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const ranked = reverseMatchCandidates(job, candidates, 5);
+                setTopCandidates(ranked);
+              } catch (_e) { /* ignore */ }
+              setMatchingLoading(false);
+            }}
+            className="w-full sm:w-80 p-3 bg-sky-50 border border-sky-100 rounded-xl text-sm text-sky-800 font-bold outline-none focus:border-cyan-500 mb-4"
+          >
+            <option value="">Sélectionnez une offre...</option>
+            {myJobs.map(job => (
+              <option key={job.id} value={job.id}>{job.title} — {job.company}</option>
+            ))}
+          </select>
+
+          {matchingLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-8 h-8 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : topCandidates.length === 0 ? (
+            <p className="text-center text-sky-400 text-sm py-8">
+              {selectedMatchJob ? 'Aucun candidat compatible trouvé.' : 'Sélectionnez une offre pour voir les talents compatibles.'}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {topCandidates.map(({ candidate, score, commonSkills, totalRequired, sameCity }) => {
+                const initials = (candidate.displayName || candidate.fullName || '?').charAt(0).toUpperCase();
+                const skills = candidate.skills || [];
+                const scoreColor = score >= 80 ? 'bg-teal-500' : score >= 50 ? 'bg-cyan-500' : 'bg-sky-400';
+                return (
+                  <div key={candidate.id} className="border border-sky-100 rounded-2xl p-4 hover:border-cyan-200 hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-cyan-500 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">
+                        {candidate.photoURL ? <img src={candidate.photoURL} alt="" className="w-full h-full object-cover rounded-xl" /> : initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sky-800 text-sm truncate">{candidate.displayName || candidate.fullName || 'Anonyme'}</p>
+                        {candidate.location && (
+                          <p className="text-xs text-sky-500 flex items-center gap-1"><MapPin size={10} /> {candidate.location}</p>
+                        )}
+                      </div>
+                      <span className={`${scoreColor} text-white text-xs font-black px-2.5 py-1 rounded-full shrink-0`}>
+                        {score}%
+                      </span>
+                    </div>
+                    {skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {skills.slice(0, 4).map((s, i) => (
+                          <span key={i} className="bg-sky-50 text-sky-600 px-2 py-0.5 rounded text-[10px] font-bold">{s}</span>
+                        ))}
+                        {skills.length > 4 && (
+                          <span className="text-[10px] text-sky-400 font-bold">+{skills.length - 4}</span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-sky-500 font-bold">Compétences communes : {commonSkills}/{totalRequired}</span>
+                      {sameCity && <span className="text-teal-600 font-black bg-teal-50 px-1.5 py-0.5 rounded">Même ville ✓</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }

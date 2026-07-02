@@ -4,9 +4,11 @@ import { auth, db } from '../firebase/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { ArrowLeft, FileText, Download, User, Briefcase, GraduationCap, Star, Plus, X, Eye, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export function AtsCv() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [cv, setCv] = useState({
@@ -21,7 +23,7 @@ export function AtsCv() {
 
   const loadProfile = async () => {
     const user = auth.currentUser;
-    if (!user) return toast.error("Connectez-vous d'abord.");
+    if (!user) return toast.error(t('auth.connectez_vous'));
     setLoading(true);
     const snap = await getDoc(doc(db, "users", user.uid));
     if (snap.exists()) {
@@ -31,7 +33,7 @@ export function AtsCv() {
         phone: d.phone || '', location: d.location || '', skills: d.skills || [],
       }));
       setProfileLoaded(true);
-      toast.success("Profil chargé !");
+      toast.success(t('auth.profil_charge'));
     }
     setLoading(false);
   };
