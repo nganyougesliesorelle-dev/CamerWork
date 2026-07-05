@@ -1,0 +1,130 @@
+rules_version = '2';
+
+// ================================================================
+// CAMERWORK — Règles de Sécurité Firebase Storage
+// ================================================================
+//
+// Architecture :
+//   /cvs/{userId}_{timestamp}       — CV des candidats (PDF uniquement)
+//   /portfolios/{userId}_{timestamp} — Images portfolio (JPEG/PNG/WebP)
+//   /avatars/{userId}                — Photos de profil
+//
+// Principes :
+//   1. Authentification obligatoire pour toute opération
+//   2. Les CV sont en lecture publique pour les recruteurs vérifiés
+//   3. Les portfolios sont lisibles par tous les utilisateurs authentifiés
+//   4. Écriture = propriétaire uniquement
+//   5. Taille max : 10 MB pour CV, 5 MB pour images
+//   6. Types MIME restreints via validation côté serveur (Magic Number)
+// ================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── FONCTIONS HELPERS ────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isRecruiter() {
+      let role = getUserRole();
+      return role == 'recruiter' || role == 'recruteur';
+    }
+
+    function isVerifiedRecruiter() {
+      let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      return isRecruiter() && user.kycStatus == 'verified';
+    }
+
+    // Extrait le userId du nom de fichier (préfixe avant le premier "_" ou "/")
+    function getOwnerFromPath(path) {
+      // Chemin: cvs/userId_timestamp ou portfolios/userId_timestamp_filename
+      let parts = path.split('/');
+      let filename = parts[parts.size() - 1];
+      return filename.split('_')[0];
+    }
+
+    // Vérifie le type MIME côté Storage (première ligne de défense)
+    function isValidCVType() {
+      return request.resource.contentType.matches('application/pdf');
+    }
+
+    function isValidImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // ============================================================
+    // DOSSIER : cvs (CV des candidats)
+    // ============================================================
+    match /cvs/{fileName} {
+      // Lecture :
+      //   - Le propriétaire peut toujours lire son CV
+      //   - Les recruteurs vérifiés peuvent lire les CV
+      //   - Les recruteurs non vérifiés : accès refusé
+      allow read: if isAuthenticated()
+                  && (isOwner(getOwnerFromPath(fileName))
+                      || isVerifiedRecruiter());
+
+      // Écriture : propriétaire uniquement, PDF uniquement, 10 MB max
+      allow create, update: if isAuthenticated()
+                            && isOwner(getOwnerFromPath(fileName))
+                            && isValidCVType()
+                            && request.resource.size < 10 * 1024 * 1024;
+
+      // Suppression : propriétaire uniquement
+      allow delete: if isAuthenticated()
+                    && isOwner(getOwnerFromPath(fileName));
+    }
+
+    // ============================================================
+    // DOSSIER : portfolios (images des réalisations)
+    // ============================================================
+    match /portfolios/{fileName} {
+      // Lecture : tout utilisateur authentifié
+      allow read: if isAuthenticated();
+
+      // Écriture : propriétaire uniquement, image uniquement, 5 MB max
+      allow create, update: if isAuthenticated()
+                            && isOwner(getOwnerFromPath(fileName))
+                            && isValidImageType()
+                            && request.resource.size < 5 * 1024 * 1024;
+
+      // Suppression : propriétaire uniquement
+      allow delete: if isAuthenticated()
+                    && isOwner(getOwnerFromPath(fileName));
+    }
+
+    // ============================================================
+    // DOSSIER : avatars (photos de profil)
+    // ============================================================
+    match /avatars/{fileName} {
+      // Lecture : tout utilisateur authentifié
+      allow read: if isAuthenticated();
+
+      // Écriture : propriétaire uniquement, image uniquement, 3 MB max
+      allow create, update: if isAuthenticated()
+                            && isOwner(getOwnerFromPath(fileName))
+                            && isValidImageType()
+                            && request.resource.size < 3 * 1024 * 1024;
+
+      allow delete: if isAuthenticated()
+                    && isOwner(getOwnerFromPath(fileName));
+    }
+
+    // ============================================================
+    // RÈGLE PAR DÉFAUT : tout refuser
+    // ============================================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

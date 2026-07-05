@@ -9,6 +9,7 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { toast } from 'sonner';
 
 // Imports de tes pages et composants
+import { PhishingBanner } from './security/PhishingBanner';
 import { LandingPage } from './pages/LandingPage';
 import Home from './pages/Home';
 import { JobList } from './pages/joblist';
@@ -22,11 +23,16 @@ import { InterviewSimulator } from './pages/InterviewSimulator';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { Notifications } from './composants/Notifications';
 import { LangProvider } from './composants/LangContext';
+import { SettingsPage } from './pages/SettingsPage';
+import { usePresenceTracker } from './composants/OnlinePresence';
 
 function App() {
   const { t } = useTranslation();
   const [globalUser, setGlobalUser] = useState(null);
   const prevAppsRef = useRef({});
+
+  // Tracker de présence temps réel
+  usePresenceTracker(globalUser?.uid);
 
   // Surveiller l'auth
   useEffect(() => {
@@ -104,6 +110,7 @@ function App() {
   return (
     <LangProvider>
     <Router>
+      <PhishingBanner />
       <Toaster 
         position="top-center" 
         richColors 
@@ -143,6 +150,9 @@ function App() {
         {/* 6. Espace Recruteur */}
         <Route path="/DashboardRecruiter" element={<DashboardRecruiter />} /> 
         <Route path="/RecruiterPost" element={<RecruiterPost />} />
+
+        {/* 8. Paramètres */}
+        <Route path="/parametres" element={<SettingsPage />} />
 
         {/* 7. Redirection de sécurité (Doit toujours être TOUT à la fin) */}
         <Route path="*" element={<Navigate to="/" />} />

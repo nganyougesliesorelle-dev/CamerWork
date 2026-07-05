@@ -47,7 +47,10 @@
     "valider_email": "I verified my email",
     "verification": "Verifying...",
     "profil_charge": "Profile loaded!",
-    "connectez_vous": "Please log in first."
+    "connectez_vous": "Please log in first.",
+    "verification_deux_etapes": "Two-Step Verification",
+    "valider": "Verify",
+    "retour_connexion": "Back to login"
   },
   "profile": {
     "title": "Profile",

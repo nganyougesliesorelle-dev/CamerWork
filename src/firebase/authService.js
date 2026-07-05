@@ -4,12 +4,13 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
   updateProfile,
-  sendEmailVerification // AJOUTÉ : Requis pour envoyer le mail de confirmation
+  sendEmailVerification
 } from "firebase/auth";
 import { 
   doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs, query, where
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Ajout pour les fichiers
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { initiateLogin, completeMfaChallenge, isMfaError } from './mfaService';
 
 /**
  * 1. INSCRIPTION + ENVOI DU MAIL DE CONFIRMATION (Champs additionnels inclus)
@@ -77,9 +78,60 @@ export const loginUser = async (email, password) => {
     }
     return { success: false, error: "Profil utilisateur inexistant dans la base." };
   } catch (error) {
+    if (isMfaError(error)) {
+      return {
+        success: false,
+        mfaRequired: true,
+        mfaResolver: null,
+        error: 'Vérification en deux étapes requise.',
+        firebaseError: error,
+      };
+    }
     console.error("Erreur Connexion:", error.code);
     return { success: false, error: "Email ou mot de passe incorrect." };
   }
+};
+
+/**
+ * 2.B CONNEXION AVEC SUPPORT MFA COMPLET
+ * Gère le flux : email/mdp → détection MFA → challenge TOTP → connexion finale.
+ */
+export const loginWithMfa = async (email, password, mfaCode, mfaResolver) => {
+  if (mfaCode && mfaResolver) {
+    const result = await completeMfaChallenge(mfaResolver, mfaCode);
+    if (!result.success) return result;
+    const user = result.user;
+    if (!user.emailVerified) {
+      return { success: false, error: "Veuillez valider votre adresse e-mail avant de vous connecter." };
+    }
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (userDoc.exists()) {
+      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
+      return { success: true, user, role: userDoc.data().role };
+    }
+    return { success: false, error: "Profil utilisateur inexistant dans la base." };
+  }
+
+  const result = await initiateLogin(email, password);
+  if (result.success) {
+    const user = result.user;
+    if (!user.emailVerified) {
+      return { success: false, error: "Veuillez valider votre adresse e-mail avant de vous connecter." };
+    }
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (userDoc.exists()) {
+      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
+      return { success: true, user, role: userDoc.data().role };
+    }
+    return { success: false, error: "Profil utilisateur inexistant dans la base." };
+  }
+
+  return {
+    success: false,
+    mfaRequired: result.mfaRequired || false,
+    mfaResolver: result.resolver || null,
+    error: result.error || 'Email ou mot de passe incorrect.',
+  };
 };
 
 /**

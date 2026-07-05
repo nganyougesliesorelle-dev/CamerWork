@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { calculateMatchingScore } from "../firebase/matchingEngine";
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../composants/LangContext';
+import { AnimatedPage, StaggerContainer, StaggerItem } from '../composants/AnimatedPage';
+import { SkeletonCard } from '../composants/SkeletonCard';
 // Composant Carte d'Offre avec Badge de Correspondance Intelligent
 const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
   const formatDate = (timestamp) => {
@@ -160,6 +162,7 @@ export function JobList() {
     .sort((a, b) => b.matchingScore - a.matchingScore);
 
   return (
+    <AnimatedPage>
     <div className={`min-h-screen font-sans pb-32 ${darkMode ? 'bg-slate-900 text-slate-200' : 'bg-sky-50 text-sky-800'}`}>
       {/* Header */}
       <div className="bg-gradient-to-br from-sky-600 via-sky-700 to-sky-900 text-white relative overflow-hidden">
@@ -223,23 +226,21 @@ export function JobList() {
         </h2>
         
         {loading ? (
-          <div className="flex flex-col items-center py-20">
-             <div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-             <p className="text-sky-400 font-bold">Chargement...</p>
-          </div>
+          <SkeletonCard variant="card" count={6} />
         ) : processedJobs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {processedJobs.map((job) => (
-              <JobCard 
-                key={job.id} 
-                job={job} 
-                score={job.matchingScore}
-                userRole={userRole}
-                darkMode={darkMode}
-                onClick={() => navigate(`/offres/${job.id}`)}
-              />
+              <StaggerItem key={job.id}>
+                <JobCard 
+                  job={job} 
+                  score={job.matchingScore}
+                  userRole={userRole}
+                  darkMode={darkMode}
+                  onClick={() => navigate(`/offres/${job.id}`)}
+                />
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerContainer>
         ) : (
           <div className="bg-white p-12 rounded-3xl text-center shadow-sm border border-dashed border-sky-300">
             <p className="text-sky-500 font-bold">Aucune offre trouvée.</p>
@@ -276,5 +277,6 @@ export function JobList() {
         )}
       </div>
     </div>
+    </AnimatedPage>
   );
 }

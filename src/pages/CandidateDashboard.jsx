@@ -187,17 +187,41 @@ export function CandidateDashboard() {
                       </div>
                     </div>
                     {isExpanded && missing.length > 0 && (
-                      <div className="border-t border-sky-50 bg-sky-50/50 p-4">
-                        <p className="text-xs font-bold text-sky-600 mb-2 flex items-center gap-1">
-                          <TrendingUp size={12} /> Compétences à travailler :
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {missing.map(skill => (
-                            <span key={skill} className="bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1 rounded-lg text-[11px] font-bold">
-                              {skill}
-                            </span>
-                          ))}
+                      <div className="border-t border-sky-50 bg-gradient-to-r from-amber-50 to-sky-50 p-4 space-y-3">
+                        {/* Message de coaching personnalisé */}
+                        <div className="bg-white rounded-xl p-3 border border-amber-100">
+                          <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5 mb-1">
+                            <Lightbulb size={14} className="text-amber-500" /> Conseil Coaching
+                          </p>
+                          <p className="text-xs text-sky-600 leading-relaxed">
+                            Votre profil ne matche pas totalement, mais vous pouvez ajouter{' '}
+                            <strong className="text-sky-800">{missing.slice(0, 2).join(', ')}</strong>
+                            {missing.length > 2 && <> et <strong className="text-sky-800">{missing.length - 2} autre{missing.length - 2 > 1 ? 's' : ''} compétence{missing.length - 2 > 1 ? 's' : ''}</strong></>}
+                            {' '}et vous former avec les ressources ci-dessous pour décrocher cette offre !
+                          </p>
                         </div>
+                        {/* Compétences manquantes avec ressources */}
+                        {missing.map(skill => {
+                          const resources = getResourcesForSkill(skill);
+                          return (
+                            <div key={skill} className="bg-white rounded-xl p-3 border border-sky-100">
+                              <p className="text-xs font-black text-sky-800 mb-2 flex items-center gap-1.5">
+                                <TrendingUp size={12} className="text-cyan-500" /> {skill}
+                              </p>
+                              <div className="space-y-1.5">
+                                {resources.slice(0, 2).map((r, i) => (
+                                  <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-[11px] text-sky-600 hover:text-cyan-600 bg-sky-50 hover:bg-cyan-50 p-2 rounded-lg transition-all group">
+                                    <BookOpen size={12} className="shrink-0 text-sky-400 group-hover:text-cyan-500" />
+                                    <span className="flex-1 truncate">{r.title}</span>
+                                    <span className="text-[10px] font-bold text-sky-400 bg-white px-1.5 py-0.5 rounded shrink-0">{r.type}</span>
+                                    <ExternalLink size={10} className="shrink-0 opacity-0 group-hover:opacity-100" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

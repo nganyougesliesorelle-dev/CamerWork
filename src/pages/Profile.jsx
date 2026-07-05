@@ -7,15 +7,19 @@ import {
 } from 'lucide-react'; 
 import { useNavigate, useParams } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/firebaseConfig';
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'; 
+import { doc, getDoc, getDocs, updateDoc, collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { uploadCV } from '../firebase/authService'; 
+import { uploadCV } from '../firebase/authService';
+import { CvGeneratorButton } from '../composants/CvGenerator';
+import { KycBadge } from '../composants/KycBadge'; 
 import { calculateMatchingScore } from '../firebase/matchingEngine';
 import { requestNotificationPermission } from '../firebase/notificationService';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { AnimatedPage } from '../composants/AnimatedPage';
+import { MfaSetup } from '../security/MfaSetup';
 
 const CAMEROON_CITIES = [
   "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
@@ -41,6 +45,8 @@ export function Profile() {
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [matchScores, setMatchScores] = useState({});
   const candidateRef = useRef(null);
+  const [hasScheduledInterview, setHasScheduledInterview] = useState(false);
+  const [checkingInterview, setCheckingInterview] = useState(false);
 
   const isMyProfile = !id || id === auth.currentUser?.uid;
 
@@ -91,6 +97,24 @@ export function Profile() {
       
       if (user) {
         requestNotificationPermission(user.uid);
+      }
+
+      // Vérifier si un entretien est programmé (pour le visiteur non-propriétaire)
+      if (!isMyProfile && user) {
+        setCheckingInterview(true);
+        const appQ = query(
+          collection(db, "applications"),
+          where("candidateId", "==", targetId),
+          where("recruiterId", "==", user.uid)
+        );
+        getDocs(appQ).then(snap => {
+          const hasAccepted = snap.docs.some(d => {
+            const s = d.data().status;
+            return s === 'accepted' || s === 'retenu';
+          });
+          setHasScheduledInterview(hasAccepted);
+          setCheckingInterview(false);
+        }).catch(() => setCheckingInterview(false));
       }
 
       if (isMyProfile) {
@@ -285,6 +309,33 @@ export function Profile() {
     });
   };
 
+  // Ajout d'ami : crée une relation + notification
+  const handleAddFriend = async (targetId, targetName) => {
+    const user = auth.currentUser;
+    if (!user) return toast.error(t('profile.must_login'));
+    try {
+      // Créer la relation dans Firestore
+      await addDoc(collection(db, 'relations'), {
+        requesterId: user.uid,
+        targetId,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+      // Notifier le destinataire
+      await addDoc(collection(db, 'notifications'), {
+        userId: targetId,
+        title: 'Nouvelle demande de connexion',
+        message: `${candidate?.displayName || candidate?.fullName || 'Quelqu\'un'} souhaite se connecter avec vous.`,
+        type: 'connection_request',
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+      toast.success(`Demande envoyée à ${targetName} !`);
+    } catch (_e) {
+      toast.error(t('notifications.message_error'));
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -323,6 +374,7 @@ export function Profile() {
   })();
 
   return (
+    <AnimatedPage>
     <div className="min-h-screen bg-sky-50 font-sans antialiased pb-32">
       
       {/* HEADER BANNER */}
@@ -367,12 +419,24 @@ export function Profile() {
                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                   {candidate.role === 'recruiter' ? t('profile.recruiter') : t('profile.candidate')}
                 </span>
+                {candidate.role === 'recruiter' && <KycBadge status={candidate.kycStatus || 'unverified'} />}
               </div>
-              <p className="text-sky-300 text-sm font-medium flex items-center gap-2">
-                <Mail size={14} /> {candidate.email}
-              </p>
+              {isMyProfile || hasScheduledInterview ? (
+                <p className="text-sky-300 text-sm font-medium flex items-center gap-2">
+                  <Mail size={14} /> {candidate.email}
+                </p>
+              ) : (
+                <p className="text-sky-300/60 text-sm font-medium flex items-center gap-2 italic">
+                  <Mail size={14} /> Email masqué — Planifiez un entretien pour le débloquer
+                </p>
+              )}
               {candidate.username && (
                 <p className="text-cyan-400 text-sm font-semibold mt-0.5">@{candidate.username}</p>
+              )}
+              {(isMyProfile || hasScheduledInterview) && candidate.phone && (
+                <p className="text-sky-400 text-xs font-medium mt-1 flex items-center gap-1">
+                  <Phone size={12} /> {candidate.phone}
+                </p>
               )}
               {candidate.location && (
                 <p className="text-sky-400 text-xs font-medium mt-1 flex items-center gap-1">
@@ -381,9 +445,13 @@ export function Profile() {
               )}
             </div>
 
-            {/* Quick actions */}
+            {/* Quick actions + CV Generator */}
+            <div className="flex gap-3 shrink-0 items-center">
+              {isCandidateUser && isMyProfile && (
+                <CvGeneratorButton profile={candidate} />
+              )}
             {isMyProfile && (
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-2">
                 <button
                   onClick={() => setIsEditing(!isEditing)}
                   className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
@@ -404,6 +472,7 @@ export function Profile() {
                 )}
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -472,12 +541,17 @@ export function Profile() {
               </h3>
               
               <div className="space-y-2">
-                {candidate.phone && (
+                {candidate.phone && (isMyProfile || hasScheduledInterview) ? (
                   <div className="flex items-center gap-3 text-sm">
                     <Phone size={15} className="text-sky-400 shrink-0" />
                     <span className="text-sky-700 font-medium">{candidate.phone}</span>
                   </div>
-                )}
+                ) : candidate.phone && !isMyProfile ? (
+                  <div className="flex items-center gap-3 text-sm text-sky-400 italic">
+                    <Phone size={15} className="text-sky-300 shrink-0" />
+                    <span>Téléphone masqué</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-3 text-sm">
                   <Globe size={15} className="text-sky-400 shrink-0" />
                   {isEditing ? (
@@ -611,7 +685,11 @@ export function Profile() {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button className="p-1.5 hover:bg-sky-100 text-sky-400 rounded-lg transition-all"><UserPlus size={13} /></button>
+                      <button
+                        onClick={() => handleAddFriend(p.id, p.name)}
+                        className="p-1.5 hover:bg-sky-100 text-sky-400 rounded-lg transition-all"
+                        title="Ajouter comme contact"
+                      ><UserPlus size={13} /></button>
                       <button 
                         onClick={() => {
                           const currentUid = auth.currentUser?.uid;
@@ -838,9 +916,15 @@ export function Profile() {
             </div>
             )}
 
+            {/* Section sécurité : Double Authentification (MFA) */}
+            {isMyProfile && (
+              <MfaSetup />
+            )}
+
           </div>
         </div>
       </div>
     </div>
+    </AnimatedPage>
   );
 }

@@ -8,6 +8,7 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp
 
 // Import de la fonction de service que nous avons centralisée
 import { applyToJob, cancelApplication } from '../firebase/authService'; 
+import { AnimatedPage } from '../composants/AnimatedPage'; 
 
 const getTypeColor = (type) => {
   const t = type?.toLowerCase();
@@ -161,6 +162,7 @@ export function JobDetails() {
   if (!job) return null;
 
   return (
+    <AnimatedPage>
     <div className="min-h-screen bg-sky-50 pb-32">
       {/* Header / Banner */}
       <div className="bg-sky-900 h-64 w-full p-8 flex items-start justify-center relative overflow-hidden">
@@ -348,5 +350,6 @@ export function JobDetails() {
         </div>
       </div>
     </div>
+    </AnimatedPage>
   );
 }

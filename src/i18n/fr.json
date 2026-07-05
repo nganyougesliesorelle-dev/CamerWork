@@ -47,7 +47,10 @@
     "valider_email": "J'ai validé mon e-mail",
     "verification": "Vérification...",
     "profil_charge": "Profil chargé !",
-    "connectez_vous": "Connectez-vous d'abord."
+    "connectez_vous": "Connectez-vous d'abord.",
+    "verification_deux_etapes": "Vérification en deux étapes",
+    "valider": "Valider",
+    "retour_connexion": "Retour à la connexion"
   },
   "profile": {
     "title": "Profil",

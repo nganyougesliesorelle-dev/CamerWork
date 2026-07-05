@@ -4,8 +4,9 @@ import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
 import { useTranslation } from 'react-i18next';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { dispatchJobOpportunities } from '../firebase/authService'; 
+import { canRecruiterPost } from '../composants/KycBadge'; 
 
 const CAMEROON_CITIES = [
   "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
@@ -69,18 +70,29 @@ const STEPS = [
     if (formData[field].length > 1) setFormData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Si pas à la dernière étape, avancer au lieu de publier
-    if (step < 3) {
-      if (canNext()) setStep(step + 1);
-      return;
-    }
+  // Avance à l'étape suivante (appelé par Entrée ou bouton Suivant)
+  const handleStepForward = (e) => {
+    if (e) e.preventDefault();
+    if (step < 3 && canNext()) setStep(step + 1);
+  };
 
+  // Publication explicite (clic uniquement, jamais déclenché par Entrée)
+  const handlePublish = async () => {
     const user = auth.currentUser;
     if (!user) return toast.error(t('recruiter.must_login'));
     if (formData.missions.filter(m => m.trim()).length === 0) return toast.error(t('recruiter.add_mission'));
+
+    // Vérification KYC : bloquer les recruteurs non vérifiés après la période de grâce
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      if (userData.role === 'recruiter' || userData.role === 'recruteur') {
+        if (!canRecruiterPost(userData.kycStatus || 'unverified', userData.createdAt)) {
+          toast.error('🔒 Votre compte doit être vérifié (KYC) pour publier des offres. Veuillez contacter le support CamerWork.', { duration: 7000 });
+          return;
+        }
+      }
+    }
 
     setLoading(true);
     try {
@@ -154,7 +166,7 @@ const STEPS = [
           
           {/* Formulaire */}
           <div className={`${showPreview ? 'lg:col-span-2' : 'lg:col-span-3'} transition-all`}>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleStepForward} className="space-y-4">
               
               {/* Étape 1 */}
               {step === 1 && (
@@ -282,8 +294,8 @@ const STEPS = [
                       {t('recruiter.next')} <ChevronRight size={16} />
                     </button>
                   ) : (
-                    <button type="submit" disabled={loading}
-                      className="px-6 py-3 bg-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 hover:bg-cyan-600 transition-all">
+                    <button type="button" onClick={handlePublish} disabled={loading}
+                      className="px-6 py-3 bg-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 hover:bg-cyan-600 transition-all disabled:opacity-50">
                       <Send size={14} /> {loading ? t('recruiter.publishing') : editJob ? t('recruiter.update') : t('recruiter.publish')}
                     </button>
                   )}

@@ -14,6 +14,8 @@ import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, 
 import { ArrowLeft, Send, Briefcase, Building2, ShieldCheck, UserCheck, FileText, Calendar, Phone, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { OnlinePresence } from '../composants/OnlinePresence';
+import { AnimatedPage } from '../composants/AnimatedPage';
 
 export function Chat() {
   const { chatId } = useParams();
@@ -159,7 +161,15 @@ export function Chat() {
   const otherName = candidateProfile?.displayName || candidateProfile?.fullName || (isRecruiter ? 'Candidat' : 'Recruteur');
   const otherInitials = otherName.charAt(0).toUpperCase();
 
+  // Vérifier si un entretien a été planifié et accepté entre les deux parties
+  const hasAcceptedInterview = messages.some(
+    m => m.type === 'appointment_proposal' && m.status === 'accepted'
+  );
+  const isOtherCandidate = candidateProfile?.role === 'candidate' || candidateProfile?.role === 'candidat';
+  const shouldMaskContact = isRecruiter && isOtherCandidate && !hasAcceptedInterview;
+
   return (
+    <AnimatedPage>
     <div className="min-h-screen bg-gradient-to-br from-sky-50 to-cyan-50 font-sans antialiased flex flex-col">
       
       {/* ─── HEADER ─── */}
@@ -182,8 +192,7 @@ export function Chat() {
           </div>
           
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 bg-teal-500 rounded-full animate-pulse"></span>
-            <span className="text-xs text-teal-600 font-bold hidden sm:inline">{t('chat.online')}</span>
+            <OnlinePresence userId={isRecruiter ? chatInfo?.candidateId : chatInfo?.recruiterId} showLabel size="sm" />
           </div>
         </div>
       </div>
@@ -358,15 +367,24 @@ export function Chat() {
               </div>
 
               <div className="space-y-2">
-                {candidateProfile.email && (
-                  <div className="flex items-center gap-2 text-xs text-sky-600">
-                    <CheckCircle2 size={12} className="text-teal-500" /> {candidateProfile.email}
+                {shouldMaskContact ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-amber-500 shrink-0" />
+                    <span>Coordonnées masquées — planifiez un entretien pour les débloquer</span>
                   </div>
-                )}
-                {candidateProfile.phone && (
-                  <div className="flex items-center gap-2 text-xs text-sky-600">
-                    <Phone size={12} className="text-sky-400" /> {candidateProfile.phone}
-                  </div>
+                ) : (
+                  <>
+                    {candidateProfile.email && (
+                      <div className="flex items-center gap-2 text-xs text-sky-600">
+                        <CheckCircle2 size={12} className="text-teal-500" /> {candidateProfile.email}
+                      </div>
+                    )}
+                    {candidateProfile.phone && (
+                      <div className="flex items-center gap-2 text-xs text-sky-600">
+                        <Phone size={12} className="text-sky-400" /> {candidateProfile.phone}
+                      </div>
+                    )}
+                  </>
                 )}
                 {candidateProfile.location && (
                   <div className="flex items-center gap-2 text-xs text-sky-600">
@@ -403,5 +421,6 @@ export function Chat() {
         </div>
       </div>
     </div>
+    </AnimatedPage>
   );
 }

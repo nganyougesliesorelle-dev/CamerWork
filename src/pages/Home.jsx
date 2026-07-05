@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { registerUser, loginUser, resetPassword } from '../firebase/authService'; 
+import { registerUser, loginUser, loginWithMfa, resetPassword } from '../firebase/authService';
 import { auth } from '../firebase/firebaseConfig';
 import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
-import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader } from 'lucide-react';
 import { LanguageSwitcher } from '../composants/boutons';
 
 const Home = () => {
@@ -33,6 +33,12 @@ const Home = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
+
+  // États MFA (double authentification)
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaResolver, setMfaResolver] = useState(null);
+  const [mfaEmail, setMfaEmail] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -101,7 +107,7 @@ const Home = () => {
       const cleanEmail = email.trim();
 
       if (isLoginMode) {
-        const result = await loginUser(cleanEmail, password);
+        const result = await loginWithMfa(cleanEmail, password);
         if (result.success) {
           if (!auth.currentUser.emailVerified) {
             toast.info(t('notifications.verify_email_first'));
@@ -117,6 +123,13 @@ const Home = () => {
           } else {
             navigate('/offres');
           }
+        } else if (result.mfaRequired) {
+          // MFA requis — afficher l'écran de saisie du code
+          setMfaRequired(true);
+          setMfaResolver(result.mfaResolver);
+          setMfaEmail(cleanEmail);
+          setLoading(false);
+          return;
         } else {
           toast.error(result.error || t('notifications.error_login'));
         }
@@ -139,6 +152,105 @@ const Home = () => {
       setLoading(false);
     }
   };
+
+  // Handler pour soumettre le code MFA
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault();
+    if (!mfaCode || mfaCode.length !== 6) {
+      toast.error('Veuillez saisir le code à 6 chiffres.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await loginWithMfa(mfaEmail, '', mfaCode, mfaResolver);
+      if (result.success) {
+        toast.success(t('notifications.success_login'));
+        requestNotificationPermission(auth.currentUser.uid);
+        if (result.role === 'recruiter') navigate('/DashboardRecruiter');
+        else navigate('/offres');
+      } else {
+        toast.error(result.error || 'Code incorrect. Veuillez réessayer.');
+      }
+    } catch {
+      toast.error('Erreur de vérification. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelMfa = () => {
+    setMfaRequired(false);
+    setMfaCode('');
+    setMfaResolver(null);
+    setMfaEmail('');
+  };
+
+  // Écran MFA — saisie du code de double authentification
+  if (mfaRequired) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-900 via-[#0a4a6e] to-cyan-950 flex items-center justify-center p-4 md:p-8 font-sans relative overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-cyan-400/8 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md mx-auto space-y-6 relative z-10">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <div className="relative w-16 h-16 bg-gradient-to-br from-sky-500 via-cyan-500 to-teal-400 rounded-2xl flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+              <span className="font-black text-2xl tracking-tighter text-white select-none leading-none">CW</span>
+              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full shadow-md" />
+            </div>
+          </div>
+
+          {/* Titre */}
+          <div className="text-center space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <ShieldCheck size={24} className="text-teal-400" />
+              <h1 className="text-2xl font-bold tracking-tight text-sky-100">{t('auth.verification_deux_etapes', 'Vérification en deux étapes')}</h1>
+            </div>
+            <p className="text-xs text-sky-400 font-medium">
+              Saisissez le code à 6 chiffres de votre application d'authentification.
+            </p>
+            <p className="text-[11px] text-sky-500 mt-1">
+              Connecté en tant que <strong className="text-cyan-400">{mfaEmail}</strong>
+            </p>
+          </div>
+
+          {/* Formulaire MFA */}
+          <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <input
+              required
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full px-5 py-4 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-center text-2xl font-mono font-bold tracking-[0.5em] text-cyan-400 transition-all placeholder:text-sky-600"
+              placeholder="000000"
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={loading || mfaCode.length !== 6}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-[#0c4a6e] font-bold py-4 rounded-xl shadow-lg transition-all active:scale-[0.98] uppercase tracking-wider text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+              {loading ? t('auth.verification') : t('auth.valider', 'Valider')}
+            </button>
+          </form>
+
+          {/* Annuler */}
+          <div className="text-center">
+            <button
+              onClick={handleCancelMfa}
+              className="text-sky-400 hover:text-white text-xs font-bold transition-colors flex items-center gap-1 mx-auto"
+            >
+              <ArrowLeft size={14} /> {t('auth.retour_connexion', 'Retour à la connexion')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isWaitingVerification) {
     return (

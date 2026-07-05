@@ -1,0 +1,255 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // FONCTIONS HELPERS
+    // ============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isRecruiter() {
+      return getUserRole() == 'recruiter' || getUserRole() == 'recruteur';
+    }
+
+    function isCandidate() {
+      return getUserRole() == 'candidate' || getUserRole() == 'candidat' || getUserRole() == 'student';
+    }
+
+    function isVerifiedRecruiter() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isRecruiter() && user.kycStatus == 'verified';
+    }
+
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+
+    // Validateurs de champs
+    function isValidRole(role) {
+      return role in ['candidate', 'candidat', 'student', 'recruiter', 'recruteur', 'admin'];
+    }
+
+    function isValidKycStatus(status) {
+      return status in ['unverified', 'pending', 'verified'];
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    // ============================================================
+    // COLLECTION : users
+    // ============================================================
+    match /users/{userId} {
+      // Lecture : tout utilisateur authentifié peut lire un profil public
+      allow read: if isAuthenticated();
+
+      // Création : l'utilisateur crée son propre profil avec des champs valides
+      allow create: if isAuthenticated() && isOwner(userId)
+                    && isValidRole(request.resource.data.role)
+                    && request.resource.data.createdAt == request.time;
+
+      // Écriture : seul le propriétaire peut modifier son profil
+      allow update: if isAuthenticated() && isOwner(userId)
+                    // Un utilisateur ne peut pas modifier son rôle, kycStatus, ou createdAt
+                    && !(request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['role', 'kycStatus', 'createdAt']));
+
+      // Suppression : admin uniquement
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // ============================================================
+    // COLLECTION : jobs (offres d'emploi)
+    // ============================================================
+    match /jobs/{jobId} {
+      // Lecture : tout utilisateur authentifié peut voir les offres
+      allow read: if isAuthenticated();
+
+      // Création : recruteur vérifié UNIQUEMENT
+      // Validation : title, company, recruiterId obligatoires
+      allow create: if isAuthenticated() && isVerifiedRecruiter()
+                    && request.resource.data.recruiterId == request.auth.uid
+                    && isNonEmptyString(request.resource.data.title)
+                    && isNonEmptyString(request.resource.data.company)
+                    && request.resource.data.createdAt == request.time;
+
+      // Mise à jour : propriétaire de l'offre
+      allow update: if isAuthenticated()
+                    && resource.data.recruiterId == request.auth.uid
+                    && !(request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['recruiterId', 'createdAt']));
+
+      // Suppression : propriétaire de l'offre ou admin
+      allow delete: if isAuthenticated()
+                    && (resource.data.recruiterId == request.auth.uid || isAdmin());
+    }
+
+    // ============================================================
+    // COLLECTION : applications (candidatures)
+    // ============================================================
+    match /applications/{appId} {
+      // Lecture : recruteur de l'offre OU candidat concerné
+      allow read: if isAuthenticated()
+                  && (resource.data.candidateId == request.auth.uid
+                      || resource.data.recruiterId == request.auth.uid);
+
+      // Création : candidat uniquement, avec champs obligatoires validés
+      allow create: if isAuthenticated() && isCandidate()
+                    && request.resource.data.candidateId == request.auth.uid
+                    && isNonEmptyString(request.resource.data.jobId)
+                    && request.resource.data.appliedAt == request.time;
+
+      // Mise à jour du statut : recruteur de l'offre uniquement
+      // Seul le champ 'status' est modifiable (accepted/rejected)
+      allow update: if isAuthenticated()
+                    && resource.data.recruiterId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status'])
+                    && request.resource.data.status in ['accepted', 'retenu', 'rejected', 'refusé'];
+
+      // Suppression : candidat propriétaire uniquement (peut retirer sa candidature)
+      allow delete: if isAuthenticated()
+                    && resource.data.candidateId == request.auth.uid;
+    }
+
+    // ============================================================
+    // COLLECTION : chats
+    // ============================================================
+    match /chats/{chatId} {
+      // Lecture/écriture : participants uniquement
+      allow read, write: if isAuthenticated()
+                         && (resource.data.recruiterId == request.auth.uid
+                             || resource.data.candidateId == request.auth.uid);
+
+      // Création : au moins un des participants
+      allow create: if isAuthenticated()
+                    && (request.resource.data.recruiterId == request.auth.uid
+                        || request.resource.data.candidateId == request.auth.uid)
+                    && request.resource.data.createdAt == request.time;
+    }
+
+    // ============================================================
+    // COLLECTION : messages
+    // ============================================================
+    match /messages/{msgId} {
+      // Vérifier que l'utilisateur est participant du chat parent
+      function isChatParticipant() {
+        let chat = get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data;
+        return chat.recruiterId == request.auth.uid
+            || chat.candidateId == request.auth.uid;
+      }
+
+      allow read: if isAuthenticated() && isChatParticipant();
+
+      allow create: if isAuthenticated()
+                    && request.resource.data.senderId == request.auth.uid
+                    && isChatParticipant()
+                    && isNonEmptyString(request.resource.data.chatId)
+                    && request.resource.data.timestamp == request.time;
+
+      // Mise à jour : uniquement status + acceptedSlot (acceptation d'entretien)
+      allow update: if isAuthenticated()
+                    && isChatParticipant()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status', 'acceptedSlot']);
+
+      allow delete: if false; // jamais supprimer un message
+    }
+
+    // ============================================================
+    // COLLECTION : notifications
+    // ============================================================
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated()
+                  && resource.data.userId == request.auth.uid;
+
+      allow create: if isAuthenticated()
+                    && request.resource.data.createdAt == request.time;
+
+      // Mise à jour : seul le destinataire peut marquer comme lu
+      allow update: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['read']);
+
+      allow delete: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // ============================================================
+    // COLLECTION : relations (demandes de connexion)
+    // ============================================================
+    match /relations/{relId} {
+      allow read: if isAuthenticated()
+                  && (resource.data.requesterId == request.auth.uid
+                      || resource.data.targetId == request.auth.uid);
+
+      allow create: if isAuthenticated()
+                    && request.resource.data.requesterId == request.auth.uid
+                    && request.resource.data.createdAt == request.time;
+
+      allow update: if isAuthenticated()
+                    && resource.data.targetId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status']);
+
+      allow delete: if isAuthenticated()
+                    && (resource.data.requesterId == request.auth.uid
+                        || resource.data.targetId == request.auth.uid);
+    }
+
+    // ============================================================
+    // COLLECTION : reports (signalements de comportement suspect)
+    // ============================================================
+    match /reports/{reportId} {
+      // Lecture : admin + l'auteur du signalement
+      allow read: if isAuthenticated()
+                  && (resource.data.reporterId == request.auth.uid || isAdmin());
+
+      // Création : tout utilisateur authentifié
+      // Validation : reporterId, reason obligatoires
+      allow create: if isAuthenticated()
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.reason in ['scam', 'impersonation', 'harassment', 'fake_job', 'inappropriate', 'spam', 'other']
+                    && request.resource.data.createdAt == request.time;
+
+      // Mise à jour du statut : admin uniquement
+      allow update: if isAuthenticated() && isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status'])
+                    && request.resource.data.status in ['pending', 'under_review', 'resolved'];
+
+      // Suppression : admin uniquement
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // ============================================================
+    // COLLECTION : presence (statut en ligne)
+    // ============================================================
+    match /presence/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId);
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // RÈGLE PAR DÉFAUT : tout refuser
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
