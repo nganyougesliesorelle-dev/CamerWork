@@ -4,7 +4,9 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
   updateProfile,
-  sendEmailVerification
+  sendEmailVerification,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "firebase/auth";
 import { 
   doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs, query, where
@@ -402,5 +404,80 @@ export const dispatchJobOpportunities = async (newJob) => {
     }
   } catch (error) {
     console.error("Erreur lors de la distribution proactive des offres:", error);
+  }
+};
+
+/**
+ * Connexion via Google OAuth (popup).
+ *
+ * Flux :
+ *   1. Ouvre la popup Google Sign-In
+ *   2. Si premier login → crée le document Firestore avec données Google
+ *   3. Si compte existant → met à jour la dernière connexion
+ *   4. Retourne l'utilisateur et son rôle
+ *
+ * @returns {Promise<{success:boolean, user?:object, role?:string, isNew?:boolean, error?:string}>}
+ */
+export const signInWithGoogle = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account',
+    });
+
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // Vérifier si l'utilisateur existe déjà dans Firestore
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      // Premier login Google — créer le document
+      const newUserData = {
+        uid: user.uid,
+        displayName: user.displayName || user.email.split('@')[0],
+        name: user.displayName || user.email.split('@')[0],
+        email: user.email,
+        emailVerified: user.emailVerified,
+        photoURL: user.photoURL || '',
+        role: 'candidate', // Par défaut, le rôle est candidat
+        provider: 'google',
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+      };
+
+      await setDoc(userDocRef, newUserData);
+      return { success: true, user, role: 'candidate', isNew: true };
+    }
+
+    // Compte existant — mettre à jour la dernière connexion
+    const existingData = userDoc.data();
+    await updateDoc(userDocRef, {
+      lastLoginAt: serverTimestamp(),
+      emailVerified: user.emailVerified,
+      photoURL: user.photoURL || existingData.photoURL || '',
+    });
+
+    return { 
+      success: true, 
+      user, 
+      role: existingData.role || 'candidate', 
+      isNew: false 
+    };
+  } catch (error) {
+    console.error("Erreur Google Sign-In:", error);
+
+    if (error.code === 'auth/popup-closed-by-user') {
+      return { success: false, error: 'Fenêtre de connexion fermée.' };
+    }
+    if (error.code === 'auth/account-exists-with-different-credential') {
+      return { 
+        success: false, 
+        error: 'Un compte existe déjà avec cet email. Connectez-vous avec votre mot de passe.' 
+      };
+    }
+
+    return { success: false, error: error.message || 'Erreur de connexion Google.' };
   }
 };

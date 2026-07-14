@@ -68,5 +68,27 @@ const apiLimiter = rateLimit({
   },
 });
 
-export { globalLimiter, authLimiter, apiLimiter };
+/**
+ * Limiteur strict pour le reset de mot de passe.
+ * 3 tentatives / heure par IP pour prévenir l'énumération d'emails.
+ */
+const passwordResetLimiter = rateLimit({
+  windowMs: parseInt(process.env.PASSWORD_RESET_WINDOW_MS || '3600000', 10), // 1 heure
+  max: parseInt(process.env.PASSWORD_RESET_RATE_LIMIT_MAX || '3', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Trop de demandes',
+    message: 'Trop de demandes de réinitialisation. Veuillez réessayer dans une heure.',
+  },
+  keyGenerator: (req) => {
+    const email = req.body?.email || 'unknown';
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.headers['x-real-ip']
+      || req.ip;
+    return `reset:${ip}:${email}`;
+  },
+});
+
+export { globalLimiter, authLimiter, apiLimiter, passwordResetLimiter };
 export default globalLimiter;

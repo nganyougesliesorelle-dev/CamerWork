@@ -7,6 +7,7 @@
  * Effet : fondu (opacity) + glissement vers le haut (y: 20 → 0)
  *         avec une durée de 0.4s en ease-out.
  */
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 
 const pageVariants = {

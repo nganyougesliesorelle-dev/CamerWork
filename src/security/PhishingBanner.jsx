@@ -23,6 +23,7 @@ export function PhishingBanner() {
   useEffect(() => {
     const dismissed = sessionStorage.getItem(STORAGE_KEY);
     if (!dismissed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVisible(true);
       return;
     }

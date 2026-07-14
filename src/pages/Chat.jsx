@@ -149,10 +149,10 @@ export function Chat() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-sky-50">
+    <div className="min-h-screen flex items-center justify-center bg-sky-50 dark:bg-gray-900">
       <div className="flex flex-col items-center gap-3">
         <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sky-500 font-medium text-sm">{t('chat.loading')}</p>
+        <p className="text-sky-500 dark:text-gray-300 font-medium text-sm">{t('chat.loading')}</p>
       </div>
     </div>
   );
@@ -170,12 +170,12 @@ export function Chat() {
 
   return (
     <AnimatedPage>
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-cyan-50 font-sans antialiased flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800 font-sans antialiased flex flex-col">
       
       {/* ─── HEADER ─── */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-sky-100 px-4 py-3 sticky top-0 z-20 shadow-sm">
+      <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-sky-100 dark:border-gray-700 px-4 py-3 sticky top-0 z-20 shadow-sm dark:shadow-gray-900/30">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 text-sky-500 hover:text-sky-700 hover:bg-sky-50 rounded-xl transition-all">
+          <button onClick={() => navigate(-1)} className="p-2 text-sky-500 dark:text-gray-300 hover:text-sky-700 dark:hover:text-gray-200 hover:bg-sky-50 dark:hover:bg-gray-800 rounded-xl transition-all">
             <ArrowLeft size={20} />
           </button>
           
@@ -184,8 +184,8 @@ export function Chat() {
           </div>
           
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-sky-800 text-sm truncate">{otherName}</h1>
-            <div className="flex items-center gap-2 text-xs text-sky-500">
+            <h1 className="font-bold text-sky-800 dark:text-gray-100 text-sm truncate">{otherName}</h1>
+            <div className="flex items-center gap-2 text-xs text-sky-500 dark:text-gray-300">
               <Briefcase size={12} />
               <span className="truncate">{chatInfo?.jobTitle || (candidateProfile?.role === 'recruiter' ? 'Recruteur' : 'Candidat')}</span>
             </div>
@@ -205,18 +205,18 @@ export function Chat() {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
             
             {/* Bannière info */}
-            <div className="bg-white rounded-2xl p-4 border border-sky-100 flex gap-3 items-start shadow-sm">
-              <div className="p-2 bg-cyan-50 rounded-xl text-cyan-500 shrink-0"><ShieldCheck size={18} /></div>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-sky-100 dark:border-gray-700 flex gap-3 items-start shadow-sm dark:shadow-gray-900/30">
+              <div className="p-2 bg-cyan-50 dark:bg-cyan-900/30 rounded-xl text-cyan-500 shrink-0"><ShieldCheck size={18} /></div>
               <div>
-                <p className="font-bold text-xs text-sky-800">{t('chat.info_title')}</p>
-                <p className="text-xs text-sky-500 mt-0.5">{t('chat.info_body')}</p>
+                <p className="font-bold text-xs text-sky-800 dark:text-gray-100">{t('chat.info_title')}</p>
+                <p className="text-xs text-sky-500 dark:text-gray-300 mt-0.5">{t('chat.info_body')}</p>
               </div>
             </div>
 
             {messages.length === 0 ? (
               <div className="text-center py-16">
-                <Building2 size={40} className="mx-auto mb-3 text-sky-300" />
-                <p className="text-sky-400 text-sm font-medium">{t('chat.no_messages')}</p>
+                <Building2 size={40} className="mx-auto mb-3 text-sky-300 dark:text-gray-600" />
+                <p className="text-sky-400 dark:text-gray-400 text-sm font-medium">{t('chat.no_messages')}</p>
               </div>
             ) : (
               messages.map((msg) => {
@@ -232,8 +232,8 @@ export function Chat() {
                       {/* Avatar tiny */}
                       {!isMine && (
                         <div className="flex items-center gap-1.5 mb-1 ml-1">
-                          <div className="w-5 h-5 bg-sky-200 rounded-full flex items-center justify-center text-sky-600 text-[9px] font-bold">{otherInitials}</div>
-                          <span className="text-[10px] font-bold text-sky-400">{otherName.split(' ')[0]}</span>
+                          <div className="w-5 h-5 bg-sky-200 dark:bg-gray-600 rounded-full flex items-center justify-center text-sky-600 dark:text-gray-300 text-[9px] font-bold">{otherInitials}</div>
+                          <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400">{otherName.split(' ')[0]}</span>
                         </div>
                       )}
 
@@ -242,7 +242,7 @@ export function Chat() {
                         <div className={`rounded-2xl p-4 ${
                           isAccepted
                             ? 'bg-teal-500 text-white'
-                            : 'bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200'
+                            : 'bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-900/30 dark:to-cyan-900/30 border border-teal-200 dark:border-teal-800'
                         }`}>
                           <p className="font-black text-sm mb-3 flex items-center gap-2">
                             {isAccepted ? '✅ Entretien confirmé' : '📅 Proposition d\'entretien'}
@@ -262,12 +262,12 @@ export function Chat() {
                                   <button
                                     key={i}
                                     onClick={() => handleAcceptSlot(msg.id, slot)}
-                                    className="w-full text-left bg-sky-50 hover:bg-cyan-100 border border-sky-200 rounded-xl px-4 py-2.5 text-sm font-bold text-sky-700 transition-all hover:border-cyan-300"
+                                    className="w-full text-left bg-sky-50 dark:bg-gray-800 hover:bg-cyan-100 dark:hover:bg-gray-700 border border-sky-200 dark:border-gray-600 rounded-xl px-4 py-2.5 text-sm font-bold text-sky-700 dark:text-gray-200 transition-all hover:border-cyan-300"
                                   >
                                     {formatSlot(slot)}
                                   </button>
                                 ) : (
-                                  <div key={i} className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-2.5 text-sm text-sky-600 font-medium">
+                                  <div key={i} className="bg-sky-50 dark:bg-gray-800 border border-sky-100 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm text-sky-600 dark:text-gray-300 font-medium">
                                     {formatSlot(slot)}
                                   </div>
                                 )
@@ -282,16 +282,16 @@ export function Chat() {
                         /* ─── RENDU NORMAL ─── */
                         <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                           isInterview 
-                            ? 'bg-gradient-to-r from-teal-100 to-cyan-100 text-teal-800 border border-teal-200 font-medium'
+                            ? 'bg-gradient-to-r from-teal-100 to-cyan-100 dark:from-teal-900/40 dark:to-cyan-900/40 text-teal-800 dark:text-teal-200 border border-teal-200 dark:border-teal-800 font-medium'
                             : isMine 
                               ? 'bg-cyan-500 text-white rounded-br-md' 
-                              : 'bg-white text-sky-800 rounded-bl-md border border-sky-100 shadow-sm'
+                              : 'bg-white dark:bg-gray-800 text-sky-800 dark:text-gray-100 rounded-bl-md border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30'
                         }`}>
                           {msg.text}
                         </div>
                       )}
                       {!isAppointment && (
-                        <p className={`text-[10px] text-sky-400 mt-0.5 ${isMine ? 'text-right mr-1' : 'ml-1'}`}>
+                        <p className={`text-[10px] text-sky-400 dark:text-gray-400 mt-0.5 ${isMine ? 'text-right mr-1' : 'ml-1'}`}>
                           {formatTime(msg.timestamp)}
                         </p>
                       )}
@@ -304,35 +304,35 @@ export function Chat() {
           </div>
 
           {/* Input area */}
-          <div className="bg-white border-t border-sky-100 px-4 py-3">
+          <div className="bg-white dark:bg-gray-900 border-t border-sky-100 dark:border-gray-700 px-4 py-3">
             <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-3xl mx-auto">
               {isRecruiter && (
                 <button type="button" onClick={() => setScheduling(!scheduling)}
-                  className={`p-2.5 rounded-xl transition-all ${scheduling ? 'bg-teal-500 text-white' : 'bg-sky-50 text-sky-400 hover:bg-sky-100'}`} title="Planifier entretien">
+                  className={`p-2.5 rounded-xl transition-all ${scheduling ? 'bg-teal-500 text-white' : 'bg-sky-50 dark:bg-gray-800 text-sky-400 dark:text-gray-400 hover:bg-sky-100 dark:hover:bg-gray-700'}`} title="Planifier entretien">
                   <Calendar size={18} />
                 </button>
               )}
               <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                className="flex-1 p-3 bg-sky-50 border border-sky-100 rounded-2xl outline-none focus:border-cyan-400 text-sky-800 text-sm" placeholder={t('chat.message_placeholder')} />
+                className="flex-1 p-3 bg-sky-50 dark:bg-gray-800 border border-sky-100 dark:border-gray-700 rounded-2xl outline-none focus:border-cyan-400 text-sky-800 dark:text-gray-100 text-sm" placeholder={t('chat.message_placeholder')} />
               <button type="submit" disabled={!newMessage.trim()}
-                className="p-3 bg-cyan-500 text-white rounded-2xl hover:bg-cyan-600 transition-all disabled:bg-sky-200 disabled:text-sky-400">
+                className="p-3 bg-cyan-500 text-white rounded-2xl hover:bg-cyan-600 transition-all disabled:bg-sky-200 dark:disabled:bg-gray-700 disabled:text-sky-400 dark:disabled:text-gray-500">
                 <Send size={18} />
               </button>
             </form>
             {/* ─── SCHEDULING : 3 CRÉNEAUX ─── */}
             {scheduling && (
-              <div className="mt-3 max-w-3xl mx-auto bg-teal-50 p-4 rounded-2xl border border-teal-100 space-y-3">
-                <p className="text-xs font-black text-teal-700 flex items-center gap-2">
+              <div className="mt-3 max-w-3xl mx-auto bg-teal-50 dark:bg-teal-900/30 p-4 rounded-2xl border border-teal-100 dark:border-teal-800 space-y-3">
+                <p className="text-xs font-black text-teal-700 dark:text-teal-300 flex items-center gap-2">
                   <Calendar size={14} /> Proposer 3 créneaux d'entretien
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[0, 1, 2].map(i => (
                     <div key={i}>
-                      <label className="text-[10px] font-bold text-teal-500 mb-1 block">Créneau {i + 1}</label>
+                      <label className="text-[10px] font-bold text-teal-500 dark:text-teal-400 mb-1 block">Créneau {i + 1}</label>
                       <input type="datetime-local"
                         value={i === 0 ? slot1 : i === 1 ? slot2 : slot3}
                         onChange={e => i === 0 ? setSlot1(e.target.value) : i === 1 ? setSlot2(e.target.value) : setSlot3(e.target.value)}
-                        className="w-full p-2 bg-white border border-teal-200 rounded-lg text-xs text-sky-700 outline-none focus:border-teal-400" />
+                        className="w-full p-2 bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-700 rounded-lg text-xs text-sky-700 dark:text-gray-100 outline-none focus:border-teal-400" />
                     </div>
                   ))}
                 </div>
@@ -341,7 +341,7 @@ export function Chat() {
                     className="px-4 py-2 bg-teal-500 text-white rounded-xl text-xs font-black hover:bg-teal-600 transition-all">
                     Proposer ces créneaux
                   </button>
-                  <button onClick={() => setScheduling(false)} className="px-4 py-2 text-xs font-bold text-sky-500 hover:text-red-500">
+                  <button onClick={() => setScheduling(false)} className="px-4 py-2 text-xs font-bold text-sky-500 dark:text-gray-300 hover:text-red-500">
                     Annuler
                   </button>
                 </div>
@@ -351,54 +351,54 @@ export function Chat() {
         </div>
 
         {/* Sidebar droite : profil candidat */}
-        <div className="hidden lg:block w-72 border-l border-sky-100 bg-white/60 backdrop-blur-sm p-4 overflow-y-auto shrink-0">
-          <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <div className="hidden lg:block w-72 border-l border-sky-100 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto shrink-0">
+          <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-3 flex items-center gap-2">
             <UserCheck size={14} className="text-cyan-500" /> {t('chat.contact_profile')}
           </h3>
           
           {candidateProfile ? (
             <div className="space-y-3">
-              <div className="text-center pb-3 border-b border-sky-100">
+              <div className="text-center pb-3 border-b border-sky-100 dark:border-gray-700">
                 <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-sky-500 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto mb-2">
                   {candidateProfile.photoURL ? <img src={candidateProfile.photoURL} alt="" className="w-full h-full object-cover rounded-2xl" /> : otherInitials}
                 </div>
-                <p className="font-bold text-sky-800 text-sm">{otherName}</p>
-                <p className="text-xs text-sky-500">{candidateProfile.role === 'recruiter' ? 'Recruteur' : 'Candidat'}</p>
+                <p className="font-bold text-sky-800 dark:text-gray-100 text-sm">{otherName}</p>
+                <p className="text-xs text-sky-500 dark:text-gray-300">{candidateProfile.role === 'recruiter' ? 'Recruteur' : 'Candidat'}</p>
               </div>
 
               <div className="space-y-2">
                 {shouldMaskContact ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-center gap-2">
+                  <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-center gap-2">
                     <ShieldCheck size={14} className="text-amber-500 shrink-0" />
                     <span>Coordonnées masquées — planifiez un entretien pour les débloquer</span>
                   </div>
                 ) : (
                   <>
                     {candidateProfile.email && (
-                      <div className="flex items-center gap-2 text-xs text-sky-600">
+                      <div className="flex items-center gap-2 text-xs text-sky-600 dark:text-gray-300">
                         <CheckCircle2 size={12} className="text-teal-500" /> {candidateProfile.email}
                       </div>
                     )}
                     {candidateProfile.phone && (
-                      <div className="flex items-center gap-2 text-xs text-sky-600">
-                        <Phone size={12} className="text-sky-400" /> {candidateProfile.phone}
+                      <div className="flex items-center gap-2 text-xs text-sky-600 dark:text-gray-300">
+                        <Phone size={12} className="text-sky-400 dark:text-gray-400" /> {candidateProfile.phone}
                       </div>
                     )}
                   </>
                 )}
                 {candidateProfile.location && (
-                  <div className="flex items-center gap-2 text-xs text-sky-600">
-                    <MapPin size={12} className="text-sky-400" /> {candidateProfile.location}
+                  <div className="flex items-center gap-2 text-xs text-sky-600 dark:text-gray-300">
+                    <MapPin size={12} className="text-sky-400 dark:text-gray-400" /> {candidateProfile.location}
                   </div>
                 )}
               </div>
 
               {candidateProfile.skills?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-black text-sky-400 uppercase mb-1.5">{t('profile.skills')}</p>
+                  <p className="text-[10px] font-black text-sky-400 dark:text-gray-400 uppercase mb-1.5">{t('profile.skills')}</p>
                   <div className="flex flex-wrap gap-1">
                     {candidateProfile.skills.slice(0, 8).map((s, i) => (
-                      <span key={i} className="bg-sky-50 text-sky-600 px-2 py-0.5 rounded-lg text-[10px] font-bold">{s}</span>
+                      <span key={i} className="bg-sky-50 dark:bg-gray-800 text-sky-600 dark:text-gray-300 px-2 py-0.5 rounded-lg text-[10px] font-bold">{s}</span>
                     ))}
                   </div>
                 </div>
@@ -406,17 +406,17 @@ export function Chat() {
 
               {candidateProfile.cvUrl && (
                 <a href={candidateProfile.cvUrl} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2 text-xs font-black text-cyan-500 hover:text-cyan-600 bg-cyan-50 px-3 py-2 rounded-xl transition-all">
+                  className="flex items-center gap-2 text-xs font-black text-cyan-500 hover:text-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 px-3 py-2 rounded-xl transition-all">
                   <FileText size={14} /> {t('profile.consult_cv')}
                 </a>
               )}
 
               {!candidateProfile.cvUrl && !candidateProfile.skills?.length && (
-                <p className="text-xs text-sky-400 italic text-center py-4">{t('chat.profile_sparse')}</p>
+                <p className="text-xs text-sky-400 dark:text-gray-400 italic text-center py-4">{t('chat.profile_sparse')}</p>
               )}
             </div>
           ) : (
-            <p className="text-xs text-sky-400 text-center py-8">{t('chat.profile_unavailable')}</p>
+            <p className="text-xs text-sky-400 dark:text-gray-400 text-center py-8">{t('chat.profile_unavailable')}</p>
           )}
         </div>
       </div>

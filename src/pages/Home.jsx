@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { registerUser, loginUser, loginWithMfa, resetPassword } from '../firebase/authService';
+import { registerUser, loginWithMfa, resetPassword } from '../firebase/authService';
 import { auth } from '../firebase/firebaseConfig';
 import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';

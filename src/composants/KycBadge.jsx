@@ -58,6 +58,7 @@ export function KycBadge({ status = 'unverified', size = 'sm' }) {
  * Vérifie si un recruteur peut publier des offres.
  * Bloque les recruteurs non vérifiés après un délai de grâce.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function canRecruiterPost(kycStatus, createdAt) {
   if (kycStatus === 'verified') return true;
   if (kycStatus === 'pending') return true; // tolérance pendant la vérification

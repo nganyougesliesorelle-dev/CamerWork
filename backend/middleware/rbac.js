@@ -14,6 +14,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { isTokenBlocked, hashToken } from './tokenBlocklist.js';
 
 // ─── Authentification JWT ──────────────────────────────────────────
 
@@ -37,6 +38,16 @@ export function authenticate(req, res, next) {
     if (!secret) throw new Error('JWT_SECRET non configuré');
 
     const decoded = jwt.verify(token, secret);
+
+    // Vérifier si le token a été révoqué (blocklist)
+    const tokenId = hashToken(token);
+    if (isTokenBlocked(tokenId)) {
+      return res.status(401).json({
+        error: 'Jeton révoqué',
+        message: 'Ce jeton a été révoqué. Veuillez vous reconnecter.',
+      });
+    }
+
     req.user = decoded; // { uid, email, role, iat, exp }
     next();
   } catch (err) {

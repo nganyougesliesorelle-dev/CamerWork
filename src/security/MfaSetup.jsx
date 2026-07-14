@@ -18,13 +18,11 @@
 
 import { useState, useEffect } from 'react';
 import {
-  getMultiFactorResolver,
-  PhoneAuthProvider,
-  PhoneMultiFactorGenerator,
   multiFactor,
   TotpMultiFactorGenerator,
 } from 'firebase/auth';
-import { auth } from '../firebase/firebaseConfig';
+import { auth, db } from '../firebase/firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
 import { Shield, ShieldCheck, Smartphone, Key, QrCode, Check, AlertTriangle, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,6 +87,14 @@ export function MfaSetup() {
 
       const cred = TotpMultiFactorGenerator.assertionForEnrollment(totpSecret, verificationCode);
       await multiFactor(user).enroll(cred, 'Authentificateur TOTP');
+
+      // Sauvegarder le secret TOTP dans Firestore pour la vérification côté serveur
+      if (totpSecret.secretKey) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          totpSecret: totpSecret.secretKey,
+          totpEnrolledAt: new Date(),
+        }).catch((err) => console.warn('Erreur sauvegarde secret TOTP:', err));
+      }
 
       setMfaStatus('enrolled');
       setStep('idle');

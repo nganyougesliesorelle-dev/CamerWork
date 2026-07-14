@@ -40,8 +40,6 @@ export function Profile() {
   const [newSkill, setNewSkill] = useState('');
   const [applications, setApplications] = useState([]); 
   const [uploading, setUploading] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [matchScores, setMatchScores] = useState({});
   const candidateRef = useRef(null);
@@ -220,9 +218,7 @@ export function Profile() {
     const file = e.target.files[0];
     if (!file) return;
     
-    setUploadingAvatar(true);
-    const result = await uploadCV(file, auth.currentUser.uid); 
-    setUploadingAvatar(false);
+    const result = await uploadCV(file, auth.currentUser.uid);
 
     if (result.success) {
       setCandidate({ ...candidate, photoURL: result.url });
@@ -347,18 +343,18 @@ export function Profile() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-sky-50">
+    <div className="min-h-screen flex items-center justify-center bg-sky-50 dark:bg-gray-900">
       <div className="flex flex-col items-center gap-3">
         <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sky-500 font-medium text-sm">{t('profile.loading')}</p>
+        <p className="text-sky-500 dark:text-gray-300 font-medium text-sm">{t('profile.loading')}</p>
       </div>
     </div>
   );
 
   if (!candidate) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 p-6 text-center">
-      <User size={64} className="text-sky-300 mb-4" />
-      <h2 className="text-2xl font-black text-sky-800 mb-2">{t('profile.not_found')}</h2>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-sky-50 dark:bg-gray-900 p-6 text-center">
+      <User size={64} className="text-sky-300 dark:text-gray-500 mb-4" />
+      <h2 className="text-2xl font-black text-sky-800 dark:text-gray-100 mb-2">{t('profile.not_found')}</h2>
       <button onClick={() => navigate('/offres')} className="bg-cyan-500 text-white px-8 py-3 rounded-2xl font-black mt-4 shadow-lg hover:bg-cyan-600 transition-all">
         {t('profile.back_to_offers')}
       </button>
@@ -375,7 +371,7 @@ export function Profile() {
 
   return (
     <AnimatedPage>
-    <div className="min-h-screen bg-sky-50 font-sans antialiased pb-32">
+    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 font-sans antialiased pb-32">
       
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 text-white relative overflow-hidden">
@@ -383,14 +379,14 @@ export function Profile() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
           <button 
             onClick={() => navigate(-1)} 
-            className="mb-6 flex items-center gap-2 text-sky-300 hover:text-white transition-colors font-bold text-sm"
+            className="mb-6 flex items-center gap-2 text-sky-300 dark:text-gray-400 hover:text-white transition-colors font-bold text-sm"
           >
             <ArrowLeft size={18} /> {t('common.back')}
           </button>
           <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
             {/* Avatar dans le header */}
             <div className="relative shrink-0 group">
-              <div className="w-20 h-20 md:w-28 md:h-28 bg-sky-800 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden flex items-center justify-center text-sky-300 font-black text-3xl md:text-4xl uppercase">
+              <div className="w-20 h-20 md:w-28 md:h-28 bg-sky-800 dark:bg-gray-700 rounded-2xl border-4 border-white/20 shadow-2xl dark:shadow-gray-900/30 overflow-hidden flex items-center justify-center text-sky-300 dark:text-gray-400 font-black text-3xl md:text-4xl uppercase">
                 {candidate.photoURL ? (
                   <img src={candidate.photoURL} alt="Profil" className="w-full h-full object-cover" />
                 ) : (
@@ -422,11 +418,11 @@ export function Profile() {
                 {candidate.role === 'recruiter' && <KycBadge status={candidate.kycStatus || 'unverified'} />}
               </div>
               {isMyProfile || hasScheduledInterview ? (
-                <p className="text-sky-300 text-sm font-medium flex items-center gap-2">
+                <p className="text-sky-300 dark:text-gray-400 text-sm font-medium flex items-center gap-2">
                   <Mail size={14} /> {candidate.email}
                 </p>
               ) : (
-                <p className="text-sky-300/60 text-sm font-medium flex items-center gap-2 italic">
+                <p className="text-sky-300/60 dark:text-gray-500 text-sm font-medium flex items-center gap-2 italic">
                   <Mail size={14} /> Email masqué — Planifiez un entretien pour le débloquer
                 </p>
               )}
@@ -434,12 +430,12 @@ export function Profile() {
                 <p className="text-cyan-400 text-sm font-semibold mt-0.5">@{candidate.username}</p>
               )}
               {(isMyProfile || hasScheduledInterview) && candidate.phone && (
-                <p className="text-sky-400 text-xs font-medium mt-1 flex items-center gap-1">
+                <p className="text-sky-400 dark:text-gray-400 text-xs font-medium mt-1 flex items-center gap-1">
                   <Phone size={12} /> {candidate.phone}
                 </p>
               )}
               {candidate.location && (
-                <p className="text-sky-400 text-xs font-medium mt-1 flex items-center gap-1">
+                <p className="text-sky-400 dark:text-gray-400 text-xs font-medium mt-1 flex items-center gap-1">
                   <MapPin size={12} /> {candidate.location}
                 </p>
               )}
@@ -457,7 +453,7 @@ export function Profile() {
                   className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
                     isEditing 
                       ? 'bg-red-500/20 text-red-300 border border-red-500/30' 
-                      : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                      : 'bg-white/10 dark:bg-gray-800/30 text-white hover:bg-white/20 border border-white/10 dark:border-gray-700'
                   }`}
                 >
                   {isEditing ? t('profile.cancel') : t('profile.edit')}
@@ -485,13 +481,13 @@ export function Profile() {
           <div className="lg:col-span-1 space-y-5">
             
             {/* Portfolio Section */}
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
                   <FolderOpen size={16} className="text-cyan-500" /> Portfolio
                 </h3>
                 {isMyProfile && (
-                  <label className="cursor-pointer flex items-center gap-1.5 text-xs font-black text-cyan-500 hover:text-cyan-600 transition-colors bg-cyan-50 px-3 py-1.5 rounded-lg">
+                  <label className="cursor-pointer flex items-center gap-1.5 text-xs font-black text-cyan-500 hover:text-cyan-600 transition-colors bg-cyan-50 dark:bg-cyan-900/30 px-3 py-1.5 rounded-lg">
                     <Upload size={13} />
                     {uploadingPortfolio ? 'Envoi...' : 'Ajouter'}
                     <input 
@@ -509,7 +505,7 @@ export function Profile() {
               {portfolioUrls.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2">
                   {portfolioUrls.map((url, idx) => (
-                    <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden bg-sky-50 border border-sky-100">
+                    <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden bg-sky-50 dark:bg-gray-700/50 border border-sky-100 dark:border-gray-700">
                       <img src={url} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         {isMyProfile && (
@@ -525,7 +521,7 @@ export function Profile() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-sky-400">
+                <div className="text-center py-8 text-sky-400 dark:text-gray-400">
                   <Image size={40} className="mx-auto mb-2 opacity-50" />
                   <p className="text-xs font-medium">
                     {isMyProfile ? "Ajoutez des images de vos réalisations" : "Aucun portfolio pour le moment"}
@@ -535,68 +531,68 @@ export function Profile() {
             </div>
 
             {/* Contact & Quick Info */}
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5 space-y-3">
-              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5 space-y-3">
+              <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
                 <User size={16} className="text-cyan-500" /> Contact
               </h3>
               
               <div className="space-y-2">
                 {candidate.phone && (isMyProfile || hasScheduledInterview) ? (
                   <div className="flex items-center gap-3 text-sm">
-                    <Phone size={15} className="text-sky-400 shrink-0" />
-                    <span className="text-sky-700 font-medium">{candidate.phone}</span>
+                    <Phone size={15} className="text-sky-400 dark:text-gray-400 shrink-0" />
+                    <span className="text-sky-700 dark:text-gray-300 font-medium">{candidate.phone}</span>
                   </div>
                 ) : candidate.phone && !isMyProfile ? (
-                  <div className="flex items-center gap-3 text-sm text-sky-400 italic">
-                    <Phone size={15} className="text-sky-300 shrink-0" />
+                  <div className="flex items-center gap-3 text-sm text-sky-400 dark:text-gray-400 italic">
+                    <Phone size={15} className="text-sky-300 dark:text-gray-500 shrink-0" />
                     <span>Téléphone masqué</span>
                   </div>
                 ) : null}
                 <div className="flex items-center gap-3 text-sm">
-                  <Globe size={15} className="text-sky-400 shrink-0" />
+                  <Globe size={15} className="text-sky-400 dark:text-gray-400 shrink-0" />
                   {isEditing ? (
                     <select 
                       value={candidate.country || 'Cameroun'} 
                       onChange={(e) => setCandidate({...candidate, country: e.target.value})}
-                      className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
+                      className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
                     >
                       <option value="Cameroun">Cameroun</option>
                       <option value="France">France</option>
                       <option value="Canada">Canada</option>
                     </select>
                   ) : (
-                    <span className="text-sky-700 font-medium">{candidate.country || "Cameroun"}</span>
+                    <span className="text-sky-700 dark:text-gray-300 font-medium">{candidate.country || "Cameroun"}</span>
                   )}
                 </div>
                 {isCandidateUser && (
                   <>
                     <div className="flex items-center gap-3 text-sm">
-                      <Calendar size={15} className="text-sky-400 shrink-0" />
+                      <Calendar size={15} className="text-sky-400 dark:text-gray-400 shrink-0" />
                       {isEditing ? (
                         <input 
                           type="date" 
                           value={candidate.birthDate || ''} 
                           onChange={(e) => setCandidate({...candidate, birthDate: e.target.value})}
-                          className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
+                          className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
                         />
                       ) : (
-                        <span className="text-sky-700 font-medium">{candidate.birthDate || "Non renseignée"}</span>
+                        <span className="text-sky-700 dark:text-gray-300 font-medium">{candidate.birthDate || "Non renseignée"}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-sm">
-                      <User size={15} className="text-sky-400 shrink-0" />
+                      <User size={15} className="text-sky-400 dark:text-gray-400 shrink-0" />
                       {isEditing ? (
                         <select 
                           value={candidate.gender || ''} 
                           onChange={(e) => setCandidate({...candidate, gender: e.target.value})}
-                          className="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 text-xs text-sky-700 outline-none focus:border-cyan-500"
+                          className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
                         >
                           <option value="">Sélectionner</option>
                           <option value="Masculin">Masculin</option>
                           <option value="Féminin">Féminin</option>
                         </select>
                       ) : (
-                        <span className="text-sky-700 font-medium">{candidate.gender || "Non renseigné"}</span>
+                        <span className="text-sky-700 dark:text-gray-300 font-medium">{candidate.gender || "Non renseigné"}</span>
                       )}
                     </div>
                   </>
@@ -604,11 +600,11 @@ export function Profile() {
               </div>
 
               {/* CV */}
-              <div className="pt-3 border-t border-sky-100">
+              <div className="pt-3 border-t border-sky-100 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
-                    <FileText size={15} className="text-sky-400" />
-                    <span className="font-medium text-sky-700">CV</span>
+                    <FileText size={15} className="text-sky-400 dark:text-gray-400" />
+                    <span className="font-medium text-sky-700 dark:text-gray-300">CV</span>
                   </div>
                   {isEditing ? (
                     <label className="cursor-pointer flex items-center gap-1 text-xs font-black text-cyan-500 hover:underline">
@@ -620,29 +616,29 @@ export function Profile() {
                       Consulter <LinkIcon size={12} />
                     </a>
                   ) : (
-                    <span className="text-xs text-sky-400 italic">Aucun CV</span>
+                    <span className="text-xs text-sky-400 dark:text-gray-400 italic">Aucun CV</span>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Location */}
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <MapPin size={16} className="text-cyan-500" />
-                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider">Localisation</h3>
+                <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider">Localisation</h3>
               </div>
               {isEditing ? (
                 <select 
                   value={candidate.location || ''} 
                   onChange={(e) => setCandidate({...candidate, location: e.target.value})}
-                  className="w-full bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5 text-sm text-sky-700 outline-none focus:border-cyan-500"
+                  className="w-full bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
                 >
                   <option value="">Sélectionner une ville</option>
                   {CAMEROON_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               ) : (
-                <p className="text-sm font-medium text-sky-700">
+                <p className="text-sm font-medium text-sky-700 dark:text-gray-300">
                   {candidate.location || "Non renseignée"}
                 </p>
               )}
@@ -650,44 +646,44 @@ export function Profile() {
 
             {/* Tableau de bord recruteur */}
             {candidate.role === 'recruiter' && isMyProfile && (
-              <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-3">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-3">
                 <button 
                   onClick={() => navigate('/DashboardRecruiter')}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-sky-50 text-sky-700 transition-all"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-sky-50 dark:hover:bg-gray-700/50 text-sky-700 dark:text-gray-300 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <Settings size={16} className="text-sky-400" />
+                    <Settings size={16} className="text-sky-400 dark:text-gray-400" />
                     <span className="text-xs font-bold">Tableau Recruteur</span>
                   </div>
-                  <ChevronRight size={15} className="text-sky-400" />
+                  <ChevronRight size={15} className="text-sky-400 dark:text-gray-400" />
                 </button>
               </div>
             )}
 
             {/* Suggestions — visible uniquement par le propriétaire */}
             {isMyProfile && (
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-4 space-y-3">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
                   <Users size={14} className="text-cyan-500" /> Réseau
                 </h3>
               </div>
               <div className="space-y-2">
                 {suggestedProfiles.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-2 bg-sky-50 rounded-xl">
+                  <div key={p.id} className="flex items-center justify-between p-2 bg-sky-50 dark:bg-gray-700/50 rounded-xl">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-sky-200 flex items-center justify-center text-sky-600 text-xs font-bold">
+                      <div className="w-8 h-8 rounded-full bg-sky-200 dark:bg-gray-600 flex items-center justify-center text-sky-600 dark:text-gray-300 text-xs font-bold">
                         {p.name.charAt(0)}
                       </div>
                       <div>
-                        <h5 className="text-xs font-bold text-sky-800">{p.name}</h5>
-                        <p className="text-[10px] text-sky-500">{p.role}</p>
+                        <h5 className="text-xs font-bold text-sky-800 dark:text-gray-100">{p.name}</h5>
+                        <p className="text-[10px] text-sky-500 dark:text-gray-400">{p.role}</p>
                       </div>
                     </div>
                     <div className="flex gap-1">
                       <button
                         onClick={() => handleAddFriend(p.id, p.name)}
-                        className="p-1.5 hover:bg-sky-100 text-sky-400 rounded-lg transition-all"
+                        className="p-1.5 hover:bg-sky-100 dark:hover:bg-gray-700 text-sky-400 dark:text-gray-400 rounded-lg transition-all"
                         title="Ajouter comme contact"
                       ><UserPlus size={13} /></button>
                       <button 
@@ -711,10 +707,10 @@ export function Profile() {
 
             {/* Déconnexion — visible uniquement par le propriétaire */}
             {isMyProfile && (
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-3">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-3">
               <button 
                 onClick={handleLogout}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-red-50 text-red-500 transition-all"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-all"
               >
                 <div className="flex items-center gap-3">
                   <LogOut size={16} />
@@ -733,53 +729,53 @@ export function Profile() {
             {isMyProfile && isCandidateUser && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 text-center">
                     <Briefcase size={20} className="text-cyan-500 mx-auto mb-1" />
-                    <span className="text-2xl font-black text-sky-800 block">{applications.length}</span>
-                    <span className="text-[10px] font-bold text-sky-400 uppercase">Postulations</span>
+                    <span className="text-2xl font-black text-sky-800 dark:text-gray-100 block">{applications.length}</span>
+                    <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase">Postulations</span>
                   </div>
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 text-center">
                     <CheckCircle2 size={20} className="text-teal-500 mx-auto mb-1" />
-                    <span className="text-2xl font-black text-teal-600 block">{acceptedApps.length}</span>
-                    <span className="text-[10px] font-bold text-sky-400 uppercase">Retenues</span>
+                    <span className="text-2xl font-black text-teal-600 dark:text-teal-400 block">{acceptedApps.length}</span>
+                    <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase">Retenues</span>
                   </div>
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 text-center">
                     <TrendingUp size={20} className="text-cyan-500 mx-auto mb-1" />
-                    <span className="text-2xl font-black text-sky-800 block">{avgScore !== null ? `${avgScore}%` : '--'}</span>
-                    <span className="text-[10px] font-bold text-sky-400 uppercase">Match moyen</span>
+                    <span className="text-2xl font-black text-sky-800 dark:text-gray-100 block">{avgScore !== null ? `${avgScore}%` : '--'}</span>
+                    <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase">Match moyen</span>
                   </div>
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 text-center">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 text-center">
                     <Sparkles size={20} className="text-cyan-500 mx-auto mb-1" />
-                    <span className="text-2xl font-black text-sky-800 block">
+                    <span className="text-2xl font-black text-sky-800 dark:text-gray-100 block">
                       {applications.filter(a => a.status === 'pending').length}
                     </span>
-                    <span className="text-[10px] font-bold text-sky-400 uppercase">En attente</span>
+                    <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase">En attente</span>
                   </div>
                 </div>
 
                 {/* Accepted Applications */}
                 {acceptedApps.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
                       <CheckCircle2 size={14} className="text-teal-500" /> Candidatures retenues
                     </h3>
                     {acceptedApps.map(app => {
                       const chatId = `${app.recruiterId}_${app.candidateId}_${app.id}`;
                       const score = matchScores[app.id];
                       return (
-                        <div key={app.id} className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                        <div key={app.id} className="bg-gradient-to-r from-teal-50 dark:from-teal-900/30 to-cyan-50 dark:to-cyan-900/20 border border-teal-200 dark:border-teal-900/40 p-4 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-teal-900/20 hover:shadow-md dark:hover:shadow-teal-900/30 transition-all">
                           <div className="flex items-center gap-4 min-w-0">
                             <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">
                               <Building2 size={18} />
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-bold text-sm text-sky-800 truncate">{app.jobTitle}</h4>
+                                <h4 className="font-bold text-sm text-sky-800 dark:text-gray-100 truncate">{app.jobTitle}</h4>
                                 {score !== undefined && score > 0 && (
-                                  <span className="text-[10px] font-black text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">{score}%</span>
+                                  <span className="text-[10px] font-black text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40 px-2 py-0.5 rounded-full">{score}%</span>
                                 )}
                               </div>
-                              <p className="text-xs text-sky-500 font-medium">{app.company}</p>
+                              <p className="text-xs text-sky-500 dark:text-gray-400 font-medium">{app.company}</p>
                             </div>
                           </div>
                           <button 
@@ -797,8 +793,8 @@ export function Profile() {
             )}
 
             {/* Parcours / About */}
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+              <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Edit3 size={14} className="text-cyan-500" />
                 {candidate.role === 'recruiter' ? "À propos de l'entreprise" : "Mon Parcours"}
               </h3>
@@ -807,11 +803,11 @@ export function Profile() {
                   value={candidate.summary || ''}
                   onChange={(e) => setCandidate({...candidate, summary: e.target.value})}
                   rows={4}
-                  className="w-full px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-700 text-sm outline-none resize-none focus:border-cyan-500 placeholder:text-sky-400"
+                  className="w-full px-4 py-3 bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-xl text-sky-700 dark:text-gray-300 text-sm outline-none resize-none focus:border-cyan-500 placeholder:text-sky-400 dark:placeholder:text-gray-500"
                   placeholder="Décrivez votre parcours professionnel, vos ambitions..."
                 />
               ) : (
-                <p className="text-sky-600 text-sm leading-relaxed">
+                <p className="text-sky-600 dark:text-gray-300 text-sm leading-relaxed">
                   {candidate.summary || "Aucune description pour le moment."}
                 </p>
               )}
@@ -819,13 +815,13 @@ export function Profile() {
 
             {/* Skills */}
             {isCandidateUser && (
-              <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-                <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+                <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Sparkles size={14} className="text-cyan-500" /> Compétences & Expertise
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {(candidate.skills || []).map((skill, index) => (
-                    <span key={index} className="flex items-center gap-1.5 bg-sky-50 text-sky-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-sky-100">
+                    <span key={index} className="flex items-center gap-1.5 bg-sky-50 dark:bg-gray-700/50 text-sky-700 dark:text-gray-300 px-3 py-1.5 rounded-xl text-xs font-bold border border-sky-100 dark:border-gray-700">
                       {skill}
                       {isEditing && (
                         <button onClick={() => removeSkill(skill)} className="text-red-400 hover:text-red-600 ml-1">
@@ -842,7 +838,7 @@ export function Profile() {
                         onChange={(e) => setNewSkill(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
                         placeholder="Ajouter une compétence..."
-                        className="bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl text-xs outline-none focus:border-cyan-500 text-sky-700 w-44"
+                        className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 px-3 py-1.5 rounded-xl text-xs outline-none focus:border-cyan-500 text-sky-700 dark:text-gray-300 placeholder:text-sky-400 dark:placeholder:text-gray-500 w-44"
                       />
                       <button onClick={addSkill} className="p-1.5 bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-all">
                         <Plus size={14} />
@@ -850,45 +846,45 @@ export function Profile() {
                     </div>
                   )}
                   {(!candidate.skills || candidate.skills.length === 0) && !isEditing && (
-                    <p className="text-sky-400 text-xs italic">Aucune compétence renseignée</p>
+                    <p className="text-sky-400 dark:text-gray-400 text-xs italic">Aucune compétence renseignée</p>
                   )}
                 </div>
               </div>
             )}
 
             {/* Personal Details Grid */}
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+              <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
                 <User size={14} className="text-cyan-500" /> Détails personnels
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-sky-50 rounded-xl p-3">
-                  <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Téléphone</span>
+                <div className="bg-sky-50 dark:bg-gray-700/50 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase block mb-1">Téléphone</span>
                   {isEditing ? (
                     <input 
                       type="text" 
                       value={candidate.phone || ''} 
                       onChange={(e) => setCandidate({...candidate, phone: e.target.value})}
-                      className="bg-white border border-sky-200 rounded-lg px-2 py-1.5 text-xs text-sky-700 outline-none focus:border-cyan-500 w-full"
+                      className="bg-white dark:bg-gray-800 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500 placeholder:text-sky-400 dark:placeholder:text-gray-500 w-full"
                       placeholder="+237..."
                     />
                   ) : (
-                    <span className="text-sm font-bold text-sky-800">{candidate.phone || "Non renseigné"}</span>
+                    <span className="text-sm font-bold text-sky-800 dark:text-gray-100">{candidate.phone || "Non renseigné"}</span>
                   )}
                 </div>
-                <div className="bg-sky-50 rounded-xl p-3">
-                  <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Email</span>
-                  <span className="text-sm font-bold text-sky-800 truncate block">{candidate.email}</span>
+                <div className="bg-sky-50 dark:bg-gray-700/50 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase block mb-1">Email</span>
+                  <span className="text-sm font-bold text-sky-800 dark:text-gray-100 truncate block">{candidate.email}</span>
                 </div>
                 {isMyProfile && isCandidateUser && (
                   <>
-                    <div className="bg-sky-50 rounded-xl p-3">
-                      <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Genre</span>
-                      <span className="text-sm font-bold text-sky-800">{candidate.gender || "Non renseigné"}</span>
+                    <div className="bg-sky-50 dark:bg-gray-700/50 rounded-xl p-3">
+                      <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase block mb-1">Genre</span>
+                      <span className="text-sm font-bold text-sky-800 dark:text-gray-100">{candidate.gender || "Non renseigné"}</span>
                     </div>
-                    <div className="bg-sky-50 rounded-xl p-3">
-                      <span className="text-[10px] font-bold text-sky-400 uppercase block mb-1">Naissance</span>
-                      <span className="text-sm font-bold text-sky-800">{candidate.birthDate || "Non renseignée"}</span>
+                    <div className="bg-sky-50 dark:bg-gray-700/50 rounded-xl p-3">
+                      <span className="text-[10px] font-bold text-sky-400 dark:text-gray-400 uppercase block mb-1">Naissance</span>
+                      <span className="text-sm font-bold text-sky-800 dark:text-gray-100">{candidate.birthDate || "Non renseignée"}</span>
                     </div>
                   </>
                 )}
@@ -897,8 +893,8 @@ export function Profile() {
 
             {/* Charts — visible uniquement par le propriétaire */}
             {isMyProfile && (
-            <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-              <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+              <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
                 <TrendingUp size={14} className="text-cyan-500" /> Postulations & Recruteurs
               </h3>
               <div className="h-48">
@@ -907,7 +903,7 @@ export function Profile() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" stroke="#7dd3fc" tickLine={false} fontSize={11} />
                     <YAxis stroke="#7dd3fc" tickLine={false} fontSize={11} allowDecimals={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#bae6fd', borderRadius: '12px', color: '#0c4a6e' }} />
+                    <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#bae6fd', borderRadius: '12px', color: '#0c4a6e' }} wrapperClassName="dark:[&_.recharts-tooltip-wrapper]:!bg-gray-800" />
                     <Bar dataKey="Postulations" fill="#38bdf8" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="Recruteurs" fill="#2dd4bf" radius={[3, 3, 0, 0]} />
                   </BarChart>

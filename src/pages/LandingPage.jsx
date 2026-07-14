@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
-import { ArrowRight, Sparkles, CheckCircle2, MessageSquare, Briefcase, Zap } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, MessageSquare, Briefcase, Zap, Mail } from 'lucide-react';
 import { useLang } from '../composants/LangContext';
 import { LanguageSwitcher } from '../composants/boutons';
 
@@ -76,7 +76,7 @@ export function LandingPage() {
               <Trans i18nKey="landing.subtitle" components={{ 1: <span className="text-sky-300 font-semibold" /> }} />
             </p>
 
-            {/* Bouton Google uniquement */}
+            {/* Boutons d'inscription */}
             <div className="flex flex-col items-center gap-3 max-w-md mx-auto lg:mx-0 pt-2">
               <button
                 onClick={() => navigate('/login')}
@@ -89,6 +89,13 @@ export function LandingPage() {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
                 {t('landing.cta_google')}
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-black uppercase tracking-wider px-8 py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Mail size={18} />
+                S'inscrire avec l'email
               </button>
             </div>
 

@@ -38,7 +38,7 @@ function FilterDropdown({ selected, onChange }) {
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all
-          ${open ? 'bg-blue-500 text-white shadow-lg shadow-blue-200/50' : 'bg-white text-sky-700 border border-sky-200 hover:border-sky-300 hover:bg-sky-50'}
+          ${open ? 'bg-blue-500 text-white shadow-lg shadow-blue-200/50' : 'bg-white dark:bg-gray-800 text-sky-700 dark:text-gray-200 border border-sky-200 dark:border-gray-600 hover:border-sky-300 dark:hover:border-gray-500 hover:bg-sky-50 dark:hover:bg-gray-700'}
         `}
       >
         <current.icon size={16} />
@@ -50,7 +50,7 @@ function FilterDropdown({ selected, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 w-56 bg-white rounded-2xl border border-sky-100 shadow-xl shadow-sky-100/40 z-30 overflow-hidden animate-in">
+        <div className="absolute top-full mt-2 left-0 w-56 bg-white dark:bg-gray-800 rounded-2xl border border-sky-100 dark:border-gray-700 shadow-xl shadow-sky-100/40 dark:shadow-gray-900/30 z-30 overflow-hidden animate-in">
           {options.map((opt) => {
             const isSelected = selected === opt.value;
             return (
@@ -61,10 +61,10 @@ function FilterDropdown({ selected, onChange }) {
                   setOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all
-                  ${isSelected ? 'bg-sky-50 text-sky-800 font-semibold' : 'text-sky-600 hover:bg-sky-50/50'}
+                  ${isSelected ? 'bg-sky-50 dark:bg-gray-700 text-sky-800 dark:text-gray-100 font-semibold' : 'text-sky-600 dark:text-gray-300 hover:bg-sky-50/50 dark:hover:bg-gray-700/50'}
                 `}
               >
-                <opt.icon size={16} className={isSelected ? 'text-teal-500' : 'text-sky-400'} />
+                <opt.icon size={16} className={isSelected ? 'text-teal-500' : 'text-sky-400 dark:text-gray-400'} />
                 <span className="flex-1 text-left">{opt.label}</span>
                 {isSelected && <Check size={14} className="text-teal-500 shrink-0" />}
               </button>
@@ -87,15 +87,15 @@ function ChatBubblesIllustration() {
       aria-hidden="true"
     >
       {/* Fond décoratif */}
-      <circle cx="140" cy="120" r="110" className="fill-sky-100/60" />
+      <circle cx="140" cy="120" r="110" className="fill-sky-100/60 dark:fill-gray-700/60" />
 
       {/* Bulle 1 — Recruteur (gauche) */}
       <g>
-        <rect x="32" y="60" width="100" height="52" rx="22" className="fill-white" strokeWidth="1.5" stroke="#BAE6FD" />
-        <path d="M32 90L14 102V82L32 90Z" className="fill-white" strokeWidth="1" stroke="#BAE6FD" />
-        <rect x="44" y="74" width="36" height="4" rx="2" className="fill-sky-200" />
-        <rect x="44" y="82" width="52" height="4" rx="2" className="fill-sky-200" />
-        <rect x="44" y="90" width="28" height="4" rx="2" className="fill-sky-200" />
+        <rect x="32" y="60" width="100" height="52" rx="22" className="fill-white dark:fill-gray-800" strokeWidth="1.5" stroke="#BAE6FD" />
+        <path d="M32 90L14 102V82L32 90Z" className="fill-white dark:fill-gray-800" strokeWidth="1" stroke="#BAE6FD" />
+        <rect x="44" y="74" width="36" height="4" rx="2" className="fill-sky-200 dark:fill-gray-600" />
+        <rect x="44" y="82" width="52" height="4" rx="2" className="fill-sky-200 dark:fill-gray-600" />
+        <rect x="44" y="90" width="28" height="4" rx="2" className="fill-sky-200 dark:fill-gray-600" />
       </g>
 
       {/* Bulle 2 — Candidat (droite, plus bas) */}
@@ -108,9 +108,9 @@ function ChatBubblesIllustration() {
       </g>
 
       {/* Avatar recruteur */}
-      <circle cx="68" cy="45" r="16" className="fill-sky-200" />
-      <circle cx="68" cy="41" r="5" className="fill-sky-300" />
-      <ellipse cx="68" cy="52" rx="6" ry="4" className="fill-sky-300" />
+      <circle cx="68" cy="45" r="16" className="fill-sky-200 dark:fill-gray-600" />
+      <circle cx="68" cy="41" r="5" className="fill-sky-300 dark:fill-gray-500" />
+      <ellipse cx="68" cy="52" rx="6" ry="4" className="fill-sky-300 dark:fill-gray-500" />
 
       {/* Avatar candidat */}
       <circle cx="222" cy="93" r="16" className="fill-teal-200" />
@@ -118,8 +118,8 @@ function ChatBubblesIllustration() {
       <ellipse cx="222" cy="100" rx="6" ry="4" className="fill-teal-300" />
 
       {/* Icônes professionnelles */}
-      <circle cx="50" cy="170" r="20" className="fill-sky-100" />
-      <Briefcase size={18} className="fill-none stroke-sky-400" x="41" y="161" />
+      <circle cx="50" cy="170" r="20" className="fill-sky-100 dark:fill-gray-700" />
+      <Briefcase size={18} className="fill-none stroke-sky-400 dark:stroke-gray-400" x="41" y="161" />
 
       <circle cx="230" cy="170" r="20" className="fill-teal-100" />
       <Users size={18} className="fill-none stroke-teal-400" x="221" y="161" />
@@ -140,23 +140,23 @@ export function MessagesEmptyState() {
 
   return (
     <AnimatedPage>
-      <div className="min-h-screen bg-gradient-to-br from-sky-50 to-cyan-50 font-sans antialiased flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800 font-sans antialiased flex flex-col">
         {/* ── HEADER ── */}
-        <div className="bg-white/90 backdrop-blur-md border-b border-sky-100 px-4 py-3 sticky top-0 z-20 shadow-sm">
+        <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-sky-100 dark:border-gray-700 px-4 py-3 sticky top-0 z-20 shadow-sm dark:shadow-gray-900/30">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             {/* Titre */}
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-gradient-to-br from-teal-400 to-cyan-400 rounded-xl flex items-center justify-center">
                 <MessageCircle size={18} className="text-white" />
               </div>
-              <h1 className="text-lg font-bold text-sky-800">
+              <h1 className="text-lg font-bold text-sky-800 dark:text-gray-100">
                 {t('chat.title') || 'Messages'}
               </h1>
             </div>
 
             {/* Badge En ligne + Dropdown */}
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 dark:bg-green-900/30 px-2.5 py-1 rounded-full">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 {t('chat.online') || 'En ligne'}
               </span>
@@ -175,12 +175,12 @@ export function MessagesEmptyState() {
             </div>
 
             {/* Titre */}
-            <h2 className="text-xl font-extrabold text-sky-800 mb-3">
+            <h2 className="text-xl font-extrabold text-sky-800 dark:text-gray-100 mb-3">
               Bienvenue sur CamerWork Messages
             </h2>
 
             {/* Texte d'invitation */}
-            <p className="text-sm text-sky-500 leading-relaxed">
+            <p className="text-sm text-sky-500 dark:text-gray-300 leading-relaxed">
               Votre espace de discussion professionnelle est prêt. Dès qu'un recruteur
               ou un candidat vous contacte, la conversation apparaîtra ici instantanément.
               En attendant, découvrez les offres disponibles ou complétez votre profil
@@ -188,7 +188,7 @@ export function MessagesEmptyState() {
             </p>
 
             {/* État du filtre */}
-            <div className="mt-6 flex items-center gap-2 text-xs text-sky-400 bg-sky-50 px-4 py-2 rounded-full">
+            <div className="mt-6 flex items-center gap-2 text-xs text-sky-400 dark:text-gray-400 bg-sky-50 dark:bg-gray-800 px-4 py-2 rounded-full">
               <Inbox size={13} />
               {filter === 'inbox' && 'Boîte de réception active'}
               {filter === 'archives' && 'Archives sélectionnées'}

@@ -169,19 +169,19 @@ export function DashboardRecruiter() {
   })();
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-sky-50">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sky-500 font-medium text-sm">Chargement du tableau de bord...</p>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sky-500 dark:text-gray-300 font-medium text-sm">Chargement du tableau de bord...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-sky-50 font-sans antialiased pb-20">
+    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 font-sans antialiased pb-20">
       
       {/* ─── HEADER ─── */}
-      <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 text-white relative">
+      <div className="bg-gradient-to-r from-sky-900 via-cyan-900 to-sky-950 dark:from-gray-800 dark:via-gray-800 dark:to-gray-900 text-white relative">
         <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px] overflow-hidden"></div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -191,7 +191,7 @@ export function DashboardRecruiter() {
               </button>
               <div>
                 <h1 className="text-xl md:text-2xl font-black tracking-tight">Espace Recruteur</h1>
-                <p className="text-sky-300 text-xs font-medium mt-0.5">{profileForm.company || 'Votre entreprise'}</p>
+                <p className="text-sky-300 dark:text-gray-400 text-xs font-medium mt-0.5">{profileForm.company || 'Votre entreprise'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -212,28 +212,28 @@ export function DashboardRecruiter() {
         
         {/* Dropdown notifications */}
         {showNotifications && (
-          <div className="absolute right-4 sm:right-8 top-20 md:top-24 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-sky-100 z-50 overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-sky-50">
-              <h3 className="text-xs font-black text-sky-800 uppercase">Notifications</h3>
+          <div className="absolute right-4 sm:right-8 top-20 md:top-24 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 z-50 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-sky-50 dark:border-gray-700">
+              <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase">Notifications</h3>
               <button onClick={() => { markAllNotifsAsRead(); setShowNotifications(false); }} className="text-[10px] font-bold text-cyan-500 hover:underline flex items-center gap-1">
                 <CheckCheck size={12} /> Tout lu
               </button>
             </div>
             <div className="max-h-72 overflow-y-auto">
               {notifications.length === 0 ? (
-                <p className="text-center text-xs text-sky-400 py-8">Aucune notification</p>
+                <p className="text-center text-xs text-sky-400 dark:text-gray-400 py-8">Aucune notification</p>
               ) : (
                 notifications.map((n) => (
                   <div 
                     key={n.id} 
                     onClick={() => { markNotifAsRead(n.id); if (n.jobId) navigate(`/offres/${n.jobId}`); setShowNotifications(false); }}
-                    className={`p-3 border-b border-sky-50 cursor-pointer hover:bg-sky-50 transition-all flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}
+                    className={`p-3 border-b border-sky-50 dark:border-gray-700 cursor-pointer hover:bg-sky-50 dark:hover:bg-gray-700/50 transition-all flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}
                   >
-                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.read ? 'bg-sky-200' : 'bg-cyan-500'}`} />
+                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.read ? 'bg-sky-200 dark:bg-gray-600' : 'bg-cyan-500'}`} />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-sky-800 truncate">{n.title}</p>
-                      <p className="text-[11px] text-sky-500 truncate">{n.message}</p>
-                      <p className="text-[9px] text-sky-400 mt-0.5">
+                      <p className="text-xs font-bold text-sky-800 dark:text-gray-100 truncate">{n.title}</p>
+                      <p className="text-[11px] text-sky-500 dark:text-gray-400 truncate">{n.message}</p>
+                      <p className="text-[9px] text-sky-400 dark:text-gray-500 mt-0.5">
                         {n.createdAt?.toDate ? new Date(n.createdAt.toDate()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
                       </p>
                     </div>
@@ -241,7 +241,7 @@ export function DashboardRecruiter() {
                 ))
               )}
             </div>
-            <button onClick={() => setShowNotifications(false)} className="w-full p-3 text-center text-xs font-bold text-sky-500 hover:bg-sky-50 border-t border-sky-50">
+            <button onClick={() => setShowNotifications(false)} className="w-full p-3 text-center text-xs font-bold text-sky-500 dark:text-gray-400 hover:bg-sky-50 dark:hover:bg-gray-700/50 border-t border-sky-50 dark:border-gray-700">
               Fermer
             </button>
           </div>
@@ -253,25 +253,25 @@ export function DashboardRecruiter() {
         {/* ─── KPIs ─── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: Briefcase, label: 'Offres actives', value: myJobs.length, color: 'text-cyan-500', bg: 'bg-cyan-50' },
-            { icon: Users, label: 'Candidatures', value: applications.length, color: 'text-sky-500', bg: 'bg-sky-50' },
-            { icon: CheckCircle, label: 'Retenus', value: acceptedCount, color: 'text-teal-500', bg: 'bg-teal-50' },
-            { icon: TrendingUp, label: 'En attente', value: pendingCount, color: 'text-amber-500', bg: 'bg-amber-50' },
+            { icon: Briefcase, label: 'Offres actives', value: myJobs.length, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-900/30' },
+            { icon: Users, label: 'Candidatures', value: applications.length, color: 'text-sky-500 dark:text-gray-300', bg: 'bg-sky-50 dark:bg-gray-700/50' },
+{ icon: CheckCircle, label: 'Retenus', value: acceptedCount, color: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-900/30' },
+             { icon: TrendingUp, label: 'En attente', value: pendingCount, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/30' },
           ].map((kpi, i) => (
-            <div key={i} className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5 hover:shadow-md transition-all">
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5 hover:shadow-md dark:hover:shadow-gray-900/30 transition-all">
               <div className={`w-10 h-10 ${kpi.bg} rounded-xl flex items-center justify-center mb-3`}>
                 <kpi.icon size={20} className={kpi.color} />
               </div>
-              <span className="text-3xl font-black text-sky-800 block">{kpi.value}</span>
-              <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">{kpi.label}</span>
+              <span className="text-3xl font-black text-sky-800 dark:text-gray-100 block">{kpi.value}</span>
+              <span className="text-xs font-bold text-sky-400 dark:text-gray-400 uppercase tracking-wider">{kpi.label}</span>
             </div>
           ))}
         </div>
 
         {/* ─── CHART + NOTIFICATIONS ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-            <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+            <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
               <BarChart3 size={16} className="text-cyan-500" /> Évolution hebdomadaire des candidatures
             </h3>
             <div className="h-56">
@@ -287,36 +287,36 @@ export function DashboardRecruiter() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-            <h3 className="text-xs font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+            <h3 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Activity size={16} className="text-cyan-500" /> Dernières notifications
             </h3>
             <div className="space-y-2 max-h-56 overflow-y-auto">
               {notifications.slice(0, 5).map((n, i) => (
-                <div key={i} className={`p-2.5 rounded-xl text-xs ${n.read ? 'bg-sky-50' : 'bg-cyan-50 border border-cyan-100'}`}>
-                  <p className="font-bold text-sky-800">{n.title}</p>
-                  <p className="text-sky-500 truncate">{n.message}</p>
+                <div key={i} className={`p-2.5 rounded-xl text-xs ${n.read ? 'bg-sky-50 dark:bg-gray-700/50' : 'bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-100 dark:border-cyan-900'}`}>
+                  <p className="font-bold text-sky-800 dark:text-gray-100">{n.title}</p>
+                  <p className="text-sky-500 dark:text-gray-400 truncate">{n.message}</p>
                 </div>
               ))}
-              {notifications.length === 0 && <p className="text-sky-400 text-xs text-center py-4">Aucune notification</p>}
+              {notifications.length === 0 && <p className="text-sky-400 dark:text-gray-400 text-xs text-center py-4">Aucune notification</p>}
             </div>
           </div>
         </div>
 
         {/* ─── MES ANNONCES ─── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-            <h2 className="text-sm font-black text-sky-800 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
               <Briefcase size={16} className="text-cyan-500" /> Mes Annonces ({myJobs.length})
             </h2>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-44">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400 dark:text-gray-400" />
                 <input type="text" placeholder="Rechercher..." value={searchJobQuery} onChange={(e) => setSearchJobQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 bg-sky-50 border border-sky-100 rounded-xl text-xs font-bold text-sky-700 outline-none focus:border-cyan-500" />
+                  className="w-full pl-8 pr-3 py-2 bg-sky-50 dark:bg-gray-700/50 border border-sky-100 dark:border-gray-700 rounded-xl text-xs font-bold text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500" />
               </div>
               <select value={selectedCityFilter} onChange={(e) => setSelectedCityFilter(e.target.value)}
-                className="bg-sky-50 border border-sky-100 rounded-xl px-3 py-2 text-xs font-bold text-sky-600 outline-none cursor-pointer">
+                className="bg-sky-50 dark:bg-gray-700/50 border border-sky-100 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-sky-600 dark:text-gray-300 outline-none cursor-pointer">
                 <option value="all">Toutes</option>
                 <option value="Yaoundé">Yaoundé</option><option value="Douala">Douala</option>
                 <option value="Garoua">Garoua</option><option value="Bafoussam">Bafoussam</option>
@@ -328,21 +328,21 @@ export function DashboardRecruiter() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredJobs.map(job => (
-              <div key={job.id} className="bg-sky-50/50 rounded-xl p-4 border border-sky-100 hover:border-cyan-300 hover:shadow-md transition-all group">
-                <h3 className="font-bold text-sky-800 text-sm truncate">{job.title}</h3>
-                <p className="text-xs text-sky-500 font-medium">{job.city || 'Yaoundé'} · {job.type || 'CDI'}</p>
+              <div key={job.id} className="bg-sky-50/50 dark:bg-gray-700/50 rounded-xl p-4 border border-sky-100 dark:border-gray-700 hover:border-cyan-300 hover:shadow-md dark:hover:shadow-gray-900/30 transition-all group">
+                <h3 className="font-bold text-sky-800 dark:text-gray-100 text-sm truncate">{job.title}</h3>
+                <p className="text-xs text-sky-500 dark:text-gray-400 font-medium">{job.city || 'Yaoundé'} · {job.type || 'CDI'}</p>
                 <div className="flex gap-2 mt-3">
-                  <button onClick={() => navigate('/RecruiterPost', { state: { editJob: job } })} className="flex-1 bg-white text-sky-600 p-2 rounded-lg hover:text-cyan-600 hover:bg-sky-100 transition-all flex justify-center border border-sky-100">
+                  <button onClick={() => navigate('/RecruiterPost', { state: { editJob: job } })} className="flex-1 bg-white dark:bg-gray-800 text-sky-600 dark:text-gray-300 p-2 rounded-lg hover:text-cyan-600 hover:bg-sky-100 dark:hover:bg-gray-700 transition-all flex justify-center border border-sky-100 dark:border-gray-700">
                     <Edit3 size={16} />
                   </button>
-                  <button onClick={() => handleDeleteJob(job.id)} className="flex-1 bg-white text-sky-600 p-2 rounded-lg hover:text-red-500 hover:bg-red-50 transition-all flex justify-center border border-sky-100">
+                  <button onClick={() => handleDeleteJob(job.id)} className="flex-1 bg-white dark:bg-gray-800 text-sky-600 dark:text-gray-300 p-2 rounded-lg hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex justify-center border border-sky-100 dark:border-gray-700">
                     <Trash2 size={16} />
                   </button>
                 </div>
               </div>
             ))}
             {filteredJobs.length === 0 && (
-              <div className="col-span-full text-center py-10 text-sky-400">
+              <div className="col-span-full text-center py-10 text-sky-400 dark:text-gray-400">
                 <Briefcase size={40} className="mx-auto mb-3 opacity-50" />
                 <p className="font-bold">Aucune annonce trouvée</p>
                 <button onClick={() => navigate('/RecruiterPost')} className="text-cyan-500 font-black text-xs mt-2 hover:underline">+ Créer une annonce</button>
@@ -352,27 +352,27 @@ export function DashboardRecruiter() {
         </div>
 
         {/* ─── CANDIDATURES ─── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-sky-100 p-5">
-          <h2 className="text-sm font-black text-sky-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+          <h2 className="text-sm font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider mb-4 flex items-center gap-2">
             <Users size={16} className="text-cyan-500" /> Candidatures récentes ({applications.length})
           </h2>
 
           {applications.length === 0 ? (
             <div className="text-center py-16">
-              <User size={48} className="mx-auto mb-4 text-sky-300" />
-              <p className="text-sky-400 font-bold text-lg">Aucun candidat n'a encore postulé</p>
-              <p className="text-sky-300 text-xs mt-1">Partagez vos annonces pour attirer des talents.</p>
+              <User size={48} className="mx-auto mb-4 text-sky-300 dark:text-gray-500" />
+              <p className="text-sky-400 dark:text-gray-400 font-bold text-lg">Aucun candidat n'a encore postulé</p>
+              <p className="text-sky-300 dark:text-gray-500 text-xs mt-1">Partagez vos annonces pour attirer des talents.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left border-b border-sky-100">
-                    <th className="pb-3 text-xs font-black text-sky-400 uppercase tracking-wider">Candidat</th>
-                    <th className="pb-3 text-xs font-black text-sky-400 uppercase tracking-wider hidden md:table-cell">Poste</th>
-                    <th className="pb-3 text-xs font-black text-sky-400 uppercase tracking-wider hidden sm:table-cell">Match</th>
-                    <th className="pb-3 text-xs font-black text-sky-400 uppercase tracking-wider">Statut</th>
-                    <th className="pb-3 text-xs font-black text-sky-400 uppercase tracking-wider text-right">Actions</th>
+                  <tr className="text-left border-b border-sky-100 dark:border-gray-700">
+                    <th className="pb-3 text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-wider">Candidat</th>
+                    <th className="pb-3 text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">Poste</th>
+                    <th className="pb-3 text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-wider hidden sm:table-cell">Match</th>
+                    <th className="pb-3 text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-wider">Statut</th>
+                    <th className="pb-3 text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

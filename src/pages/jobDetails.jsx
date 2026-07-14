@@ -8,7 +8,8 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp
 
 // Import de la fonction de service que nous avons centralisée
 import { applyToJob, cancelApplication } from '../firebase/authService'; 
-import { AnimatedPage } from '../composants/AnimatedPage'; 
+import { AnimatedPage } from '../composants/AnimatedPage';
+import { FavoriteButton } from '../composants/FavoriteButton'; 
 
 const getTypeColor = (type) => {
   const t = type?.toLowerCase();
@@ -154,7 +155,7 @@ export function JobDetails() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-sky-50">
+    <div className="min-h-screen flex items-center justify-center bg-sky-50 dark:bg-gray-900">
       <div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
     </div>
   );
@@ -163,7 +164,7 @@ export function JobDetails() {
 
   return (
     <AnimatedPage>
-    <div className="min-h-screen bg-sky-50 pb-32">
+    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 pb-32">
       {/* Header / Banner */}
       <div className="bg-sky-900 h-64 w-full p-8 flex items-start justify-center relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px]"></div>
@@ -171,69 +172,72 @@ export function JobDetails() {
             <button onClick={() => navigate(-1)} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl backdrop-blur-md transition-all">
                 <ArrowLeft size={20} />
             </button>
-            <span className="text-white/40 font-black text-xs uppercase tracking-[0.3em]">CamerWork Details</span>
+            <span className="text-white/40 font-black text-xs uppercase tracking-[0.3em]">{t('jobDetails.header_tag')}</span>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 -mt-24 relative z-20">
         {/* Main Card */}
-        <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-sky-800/10 border border-sky-100 p-8 md:p-12 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl shadow-sky-800/10 dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-8 md:p-12 mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
+            <div className="flex items-start justify-between w-full">
             <div className="flex-1">
                 <div className="flex items-center gap-2 mb-4">
                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border ${getTypeColor(job.type)}`}>
                         {job.type}
                     </span>
-                    <span className="flex items-center gap-1 text-sky-400 text-[10px] font-black uppercase">
+                    <FavoriteButton job={job} userId={auth.currentUser?.uid} size="sm" />
+                </div>
+                    <span className="flex items-center gap-1 text-sky-400 dark:text-gray-400 text-[10px] font-black uppercase">
                         <MapPin size={12} /> {job.city}
                     </span>
                     {job.isScraped && (
-                      <span className="px-3 py-1 bg-sky-50 border border-sky-100 text-cyan-600 rounded-full text-[10px] font-black uppercase tracking-wider">
-                        Partenaire Externe
+                      <span className="px-3 py-1 bg-sky-50 dark:bg-gray-700 border border-sky-100 dark:border-gray-700 text-cyan-600 rounded-full text-[10px] font-black uppercase tracking-wider">
+                        {t('common.partner')}
                       </span>
                     )}
                 </div>
-                <h1 className="text-3xl md:text-4xl font-black text-sky-900 leading-none mb-4 uppercase tracking-tighter">
+                <h1 className="text-3xl md:text-4xl font-black text-sky-900 dark:text-gray-100 leading-none mb-4 uppercase tracking-tighter">
                     {job.title}
                 </h1>
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center text-cyan-600">
+                    <div className="w-10 h-10 bg-sky-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-cyan-600">
                         <Building size={20} />
                     </div>
                     <div>
-                        <p className="text-lg font-black text-sky-700 uppercase leading-none">{job.company}</p>
+                        <p className="text-lg font-black text-sky-700 dark:text-gray-300 uppercase leading-none">{job.company}</p>
                         <p className="text-teal-500 text-xs font-bold">
-                          {job.isScraped ? "Source : MinaJobs" : "Entreprise vérifiée"}
+                          {job.isScraped ? "Source : MinaJobs" : t('common.verified')}
                         </p>
                     </div>
                 </div>
             </div>
 
             {job.salary && (
-                <div className="bg-sky-50 border border-sky-100 p-6 rounded-[2rem] text-center w-full md:w-auto">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Salaire</p>
-                    <p className="text-2xl font-black text-sky-600">{job.salary}</p>
-                    <p className="text-[10px] font-bold text-blue-400">Mensuel</p>
+                <div className="bg-sky-50 dark:bg-gray-700 border border-sky-100 dark:border-gray-700 p-6 rounded-[2rem] text-center w-full md:w-auto">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{t('jobDetails.salary_section')}</p>
+                    <p className="text-2xl font-black text-sky-600 dark:text-gray-300">{job.salary}</p>
+                    <p className="text-[10px] font-bold text-blue-400">{t('common.monthly')}</p>
                 </div>
             )}
           </div>
 
           {/* --- MODULE INTEGRÉ : ENCADRÉ COACH CAMERWORK --- */}
           {!checkingSkills && missingSkills.length > 0 && !hasApplied && userRole !== 'recruiter' && (
-            <div className="mt-8 bg-gradient-to-br from-sky-900 to-blue-950 rounded-[2rem] p-6 md:p-8 text-white shadow-xl relative overflow-hidden border border-sky-800">
+            <div className="mt-8 bg-gradient-to-br from-sky-900 to-blue-950 dark:from-gray-800 dark:to-gray-900 rounded-[2rem] p-6 md:p-8 text-white shadow-xl dark:shadow-gray-900/30 relative overflow-hidden border border-sky-800 dark:border-gray-700">
               <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 text-white font-black text-9xl select-none">
                 AI
               </div>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-2 text-cyan-400 text-xs font-black uppercase tracking-wider">
-                    <Sparkles size={16} /> Coach CamerWork
+                    <Sparkles size={16} /> {t('jobDetails.coach_title')}
                   </div>
                   <h3 className="text-xl font-black leading-tight tracking-tight uppercase">
-                    Maximise tes chances pour ce poste
+                    {t('jobDetails.coach_subtitle')}
                   </h3>
                   <p className="text-sky-300 text-sm font-medium leading-relaxed max-w-xl">
-                    Le recruteur recherche idéalement des profils maîtrisant ces technologies. S'ils font partie de ton parcours académique ou de tes projets, rajoute-les pour passer au-dessus de la pile :
+                    {t('jobDetails.coach_body')}
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     {missingSkills.map((skill, index) => (
@@ -248,32 +252,32 @@ export function JobDetails() {
                   onClick={() => navigate('/mon-profil')} 
                   className="bg-cyan-500 hover:bg-cyan-600 text-sky-900 text-sm font-black uppercase px-6 py-4 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap self-start md:self-center shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
                 >
-                  Optimiser mon profil <ArrowRight size={16} />
+                  {t('jobDetails.coach_cta')} <ArrowRight size={16} />
                 </button>
               </div>
             </div>
           )}
           {/* ----------------------------------------------- */}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 border-t border-sky-50 pt-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 border-t border-sky-50 dark:border-gray-700 pt-12">
             {/* Left: Description & Missions */}
             <div className="space-y-10">
                 <div>
-                    <h2 className="text-xs font-black text-sky-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Briefcase size={16} className="text-cyan-600" /> Description
+                    <h2 className="text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <Briefcase size={16} className="text-cyan-600" /> {t('jobDetails.description')}
                     </h2>
-                    <p className="text-sky-600 leading-relaxed font-medium text-lg whitespace-pre-line">
+                    <p className="text-sky-600 dark:text-gray-300 leading-relaxed font-medium text-lg whitespace-pre-line">
                         {job.description || "Consultez les missions pour plus de détails sur le poste."}
                     </p>
                 </div>
 
                 <div>
-                    <h2 className="text-xs font-black text-sky-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <CheckCircle size={16} className="text-cyan-600" /> Missions du poste
+                    <h2 className="text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-cyan-600" /> {t('jobDetails.missions')}
                     </h2>
                     <ul className="space-y-4">
                         {job.missions?.map((m, i) => (
-                            <li key={i} className="flex gap-4 p-4 bg-sky-50 rounded-2xl text-sky-700 font-bold text-sm">
+                            <li key={i} className="flex gap-4 p-4 bg-sky-50 dark:bg-gray-700 rounded-2xl text-sky-700 dark:text-gray-300 font-bold text-sm">
                                 <span className="text-cyan-600">{i+1}.</span> {m}
                             </li>
                         ))}
@@ -284,7 +288,7 @@ export function JobDetails() {
             {/* Right: Profile Required */}
             <div>
                 <div className="bg-sky-900 rounded-[2rem] p-8 text-white">
-                    <h2 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-6">Profil recherché</h2>
+                    <h2 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-6">{t('jobDetails.profile_required')}</h2>
                     <ul className="space-y-4">
                         {job.profile?.map((p, i) => (
                             <li key={i} className="flex items-start gap-3 text-sm font-medium">
@@ -301,11 +305,11 @@ export function JobDetails() {
 
       {/* Floating Action Bar */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-50">
-        <div className="bg-white/80 backdrop-blur-xl border border-white shadow-2xl p-4 rounded-[2.5rem] flex items-center gap-4">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-white dark:border-gray-700 shadow-2xl dark:shadow-gray-900/30 p-4 rounded-[2.5rem] flex items-center gap-4">
           {hasApplied && !job.isScraped ? (
             <div className="w-full flex items-center gap-2">
-              <div className="flex-1 bg-teal-50 text-teal-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3 text-sm">
-                <UserCheck size={20} /> CANDIDATURE ENVOYÉE
+              <div className="flex-1 bg-teal-50 dark:bg-teal-900/30 text-teal-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3 text-sm">
+                <UserCheck size={20} /> {t('common.application_sent')}
               </div>
               <button
                 onClick={async () => {
@@ -326,8 +330,8 @@ export function JobDetails() {
               </button>
             </div>
           ) : userRole === 'recruiter' ? (
-            <div className="w-full bg-sky-100 text-sky-400 py-4 rounded-2xl font-black text-center text-sm uppercase">
-               Mode Recruteur (Lecture seule)
+            <div className="w-full bg-sky-100 dark:bg-gray-700 text-sky-400 dark:text-gray-400 py-4 rounded-2xl font-black text-center text-sm uppercase">
+                {t('common.recruiter_readonly')}
             </div>
           ) : (
             <button
@@ -340,10 +344,10 @@ export function JobDetails() {
             >
                 {job.isScraped ? (
                   <>
-                    Postuler sur le site source <ExternalLink size={18} />
+                    {t('jobDetails.apply_partner')} <ExternalLink size={18} />
                   </>
                 ) : (
-                  "Postuler maintenant"
+                  t('jobDetails.apply_button')
                 )}
             </button>
           )}

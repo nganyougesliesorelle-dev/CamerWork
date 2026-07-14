@@ -16,6 +16,7 @@ import { FileText, Download, Loader } from 'lucide-react';
  * Génère et télécharge un CV PDF à partir des données du profil.
  * @param {Object} profile — Données du candidat (voir structure ci-dessous)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export async function generatePDF(profile) {
   const { jsPDF } = await import('jspdf');
 

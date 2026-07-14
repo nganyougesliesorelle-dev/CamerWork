@@ -16,6 +16,7 @@ import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
  * Hook : signale la présence de l'utilisateur courant.
  * À appeler une fois dans un composant racine (ex: App.jsx).
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePresenceTracker(userId) {
   useEffect(() => {
     if (!userId) return;
@@ -81,6 +82,7 @@ export function OnlinePresence({ userId, showLabel = false, size = 'sm' }) {
 /**
  * Formate le lastSeen en texte lisible.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatLastSeen(timestamp) {
   if (!timestamp?.toDate) return '';
   const diff = Date.now() - timestamp.toDate().getTime();
