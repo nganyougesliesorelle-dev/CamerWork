@@ -36,137 +36,103 @@ service cloud.firestore {
       return getUserRole() == 'admin';
     }
 
-    // Validateurs de champs
     function isValidRole(role) {
       return role in ['candidate', 'candidat', 'student', 'recruiter', 'recruteur', 'admin'];
-    }
-
-    function isValidKycStatus(status) {
-      return status in ['unverified', 'pending', 'verified'];
     }
 
     function isNonEmptyString(value) {
       return value is string && value.size() > 0;
     }
 
+    function isValidServerTimestamp(ts) {
+      // serverTimestamp() est résolu à request.time par le serveur.
+      // NE PAS utiliser "ts is timestamp" — la sentinelle n'est pas de type timestamp.
+      return ts == request.time;
+    }
+
+    // ── Chat : l'utilisateur est-il l'un des 2 UIDs dans le chatId ? ──
+    // chatId = uid1_uid2 (triés).  Aucun get() nécessaire.
+    function isChatParticipant(chatId) {
+      return chatId.split('_').hasAny([request.auth.uid]);
+    }
+
     // ============================================================
     // COLLECTION : users
     // ============================================================
     match /users/{userId} {
-      // Lecture : tout utilisateur authentifié peut lire un profil public
       allow read: if isAuthenticated();
-
-      // Création : l'utilisateur crée son propre profil avec des champs valides
       allow create: if isAuthenticated() && isOwner(userId)
                     && isValidRole(request.resource.data.role)
-                    && request.resource.data.createdAt == request.time;
-
-      // Écriture : seul le propriétaire peut modifier son profil
-      allow update: if isAuthenticated() && isOwner(userId)
-                    // Un utilisateur ne peut pas modifier son rôle, kycStatus, ou createdAt
-                    && !(request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['role', 'kycStatus', 'createdAt']));
-
-      // Suppression : admin uniquement
+                    && isValidServerTimestamp(request.resource.data.createdAt);
+      allow update: if isAuthenticated() && (
+                      isOwner(userId) && !(request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['role', 'kycStatus', 'createdAt']))
+                      || isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['isValidated', 'kycStatus', 'validationSteps', 'validatedAt', 'validatedBy', 'validatedCompany'])
+                    );
       allow delete: if isAuthenticated() && isAdmin();
     }
 
     // ============================================================
-    // COLLECTION : jobs (offres d'emploi)
+    // COLLECTION : jobs
     // ============================================================
     match /jobs/{jobId} {
-      // Lecture : tout utilisateur authentifié peut voir les offres
       allow read: if isAuthenticated();
-
-      // Création : recruteur vérifié UNIQUEMENT
-      // Validation : title, company, recruiterId obligatoires
       allow create: if isAuthenticated() && isVerifiedRecruiter()
                     && request.resource.data.recruiterId == request.auth.uid
                     && isNonEmptyString(request.resource.data.title)
                     && isNonEmptyString(request.resource.data.company)
-                    && request.resource.data.createdAt == request.time;
-
-      // Mise à jour : propriétaire de l'offre
+                    && isValidServerTimestamp(request.resource.data.createdAt);
       allow update: if isAuthenticated()
                     && resource.data.recruiterId == request.auth.uid
                     && !(request.resource.data.diff(resource.data).affectedKeys()
                          .hasAny(['recruiterId', 'createdAt']));
-
-      // Suppression : propriétaire de l'offre ou admin
       allow delete: if isAuthenticated()
                     && (resource.data.recruiterId == request.auth.uid || isAdmin());
     }
 
     // ============================================================
-    // COLLECTION : applications (candidatures)
+    // COLLECTION : applications
     // ============================================================
     match /applications/{appId} {
-      // Lecture : recruteur de l'offre OU candidat concerné
       allow read: if isAuthenticated()
                   && (resource.data.candidateId == request.auth.uid
                       || resource.data.recruiterId == request.auth.uid);
-
-      // Création : candidat uniquement, avec champs obligatoires validés
       allow create: if isAuthenticated() && isCandidate()
                     && request.resource.data.candidateId == request.auth.uid
                     && isNonEmptyString(request.resource.data.jobId)
-                    && request.resource.data.appliedAt == request.time;
-
-      // Mise à jour du statut : recruteur de l'offre uniquement
-      // Seul le champ 'status' est modifiable (accepted/rejected)
+                    && isValidServerTimestamp(request.resource.data.appliedAt);
       allow update: if isAuthenticated()
                     && resource.data.recruiterId == request.auth.uid
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status'])
                     && request.resource.data.status in ['accepted', 'retenu', 'rejected', 'refusé'];
-
-      // Suppression : candidat propriétaire uniquement (peut retirer sa candidature)
       allow delete: if isAuthenticated()
                     && resource.data.candidateId == request.auth.uid;
     }
 
     // ============================================================
-    // COLLECTION : chats
+    // COLLECTION : messages  (CHAT INSTANTANÉ)
     // ============================================================
-    match /chats/{chatId} {
-      // Lecture/écriture : participants uniquement
-      allow read, write: if isAuthenticated()
-                         && (resource.data.recruiterId == request.auth.uid
-                             || resource.data.candidateId == request.auth.uid);
-
-      // Création : au moins un des participants
-      allow create: if isAuthenticated()
-                    && (request.resource.data.recruiterId == request.auth.uid
-                        || request.resource.data.candidateId == request.auth.uid)
-                    && request.resource.data.createdAt == request.time;
-    }
-
-    // ============================================================
-    // COLLECTION : messages
-    // ============================================================
+    // chatId = uid1_uid2 où uid1 < uid2 (triés alphabétiquement).
+    // Aucune dépendance sur une collection "chats" — le chatId suffit.
     match /messages/{msgId} {
-      // Vérifier que l'utilisateur est participant du chat parent
-      function isChatParticipant() {
-        let chat = get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data;
-        return chat.recruiterId == request.auth.uid
-            || chat.candidateId == request.auth.uid;
-      }
-
-      allow read: if isAuthenticated() && isChatParticipant();
+      allow read: if isAuthenticated()
+                  && isChatParticipant(resource.data.chatId);
 
       allow create: if isAuthenticated()
                     && request.resource.data.senderId == request.auth.uid
-                    && isChatParticipant()
+                    && isChatParticipant(request.resource.data.chatId)
                     && isNonEmptyString(request.resource.data.chatId)
-                    && request.resource.data.timestamp == request.time;
+                    && isValidServerTimestamp(request.resource.data.timestamp);
 
       // Mise à jour : uniquement status + acceptedSlot (acceptation d'entretien)
       allow update: if isAuthenticated()
-                    && isChatParticipant()
+                    && isChatParticipant(resource.data.chatId)
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status', 'acceptedSlot']);
 
-      allow delete: if false; // jamais supprimer un message
+      allow delete: if false;
     }
 
     // ============================================================
@@ -175,91 +141,69 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read: if isAuthenticated()
                   && resource.data.userId == request.auth.uid;
-
       allow create: if isAuthenticated()
-                    && request.resource.data.createdAt == request.time;
-
-      // Mise à jour : seul le destinataire peut marquer comme lu
+                    && isValidServerTimestamp(request.resource.data.createdAt);
       allow update: if isAuthenticated()
                     && resource.data.userId == request.auth.uid
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['read']);
-
       allow delete: if isAuthenticated()
                     && resource.data.userId == request.auth.uid;
     }
 
     // ============================================================
-    // COLLECTION : relations (demandes de connexion)
+    // COLLECTION : relations
     // ============================================================
     match /relations/{relId} {
       allow read: if isAuthenticated()
                   && (resource.data.requesterId == request.auth.uid
                       || resource.data.targetId == request.auth.uid);
-
       allow create: if isAuthenticated()
                     && request.resource.data.requesterId == request.auth.uid
-                    && request.resource.data.createdAt == request.time;
-
+                    && isValidServerTimestamp(request.resource.data.createdAt);
       allow update: if isAuthenticated()
                     && resource.data.targetId == request.auth.uid
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status']);
-
       allow delete: if isAuthenticated()
                     && (resource.data.requesterId == request.auth.uid
                         || resource.data.targetId == request.auth.uid);
     }
 
     // ============================================================
-    // COLLECTION : reports (signalements de comportement suspect)
+    // COLLECTION : reports
     // ============================================================
     match /reports/{reportId} {
-      // Lecture : admin + l'auteur du signalement
       allow read: if isAuthenticated()
                   && (resource.data.reporterId == request.auth.uid || isAdmin());
-
-      // Création : tout utilisateur authentifié
-      // Validation : reporterId, reason obligatoires
       allow create: if isAuthenticated()
                     && request.resource.data.reporterId == request.auth.uid
-                    && request.resource.data.reason in ['scam', 'impersonation', 'harassment', 'fake_job', 'inappropriate', 'spam', 'other']
-                    && request.resource.data.createdAt == request.time;
-
-      // Mise à jour du statut : admin uniquement
+                     && request.resource.data.reason in ['processing_fees', 'medical_tests', 'paid_training', 'scam', 'impersonation', 'harassment', 'fake_job', 'inappropriate', 'spam', 'other']
+                    && isValidServerTimestamp(request.resource.data.createdAt);
       allow update: if isAuthenticated() && isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status'])
                     && request.resource.data.status in ['pending', 'under_review', 'resolved'];
-
-      // Suppression : admin uniquement
       allow delete: if isAuthenticated() && isAdmin();
     }
 
     // ============================================================
-    // COLLECTION : favorites (offres sauvegardées — style Indeed)
+    // COLLECTION : favorites
     // ============================================================
     match /favorites/{favId} {
-      // Lecture : propriétaire uniquement
       allow read: if isAuthenticated()
                   && resource.data.userId == request.auth.uid;
-
-      // Création : utilisateur authentifié, propriétaire du favori
       allow create: if isAuthenticated()
                     && request.resource.data.userId == request.auth.uid
                     && isNonEmptyString(request.resource.data.jobId)
-                    && request.resource.data.savedAt == request.time;
-
-      // Suppression : propriétaire uniquement
+                    && isValidServerTimestamp(request.resource.data.savedAt);
       allow delete: if isAuthenticated()
                     && resource.data.userId == request.auth.uid;
-
-      // Pas de mise à jour nécessaire (les favoris sont créés/supprimés)
       allow update: if false;
     }
 
     // ============================================================
-    // COLLECTION : presence (statut en ligne)
+    // COLLECTION : presence
     // ============================================================
     match /presence/{userId} {
       allow read: if isAuthenticated();
@@ -268,7 +212,7 @@ service cloud.firestore {
     }
 
     // ============================================================
-    // RÈGLE PAR DÉFAUT : tout refuser
+    // RÈGLE PAR DÉFAUT
     // ============================================================
     match /{document=**} {
       allow read, write: if false;

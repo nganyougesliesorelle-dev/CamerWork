@@ -2,13 +2,14 @@
  * FavoriteButton.jsx — Bouton cœur pour sauvegarder/retirer des favoris (style Indeed).
  *
  * Usage :
- *   <FavoriteButton job={job} userId={currentUser.uid} />
+ *   <FavoriteButton job={job} userId={currentUser.uid} role={userRole} />
  *
  * Fonctionnalités :
  *   - Animation de pulsation au toggle
  *   - Couleur rouge quand favori, gris quand non
  *   - Tooltip contextuel
  *   - Compteur de favoris (optionnel)
+ *   - Masqué automatiquement pour les recruteurs
  */
 
 import { useState, useEffect } from 'react';
@@ -16,7 +17,10 @@ import { Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import { toggleFavorite, isFavorite } from '../firebase/favoritesService';
 
-export function FavoriteButton({ job, userId, size = 'md', showTooltip = true, onToggle }) {
+export function FavoriteButton({ job, userId, role, size = 'md', showTooltip = true, onToggle }) {
+  // Les recruteurs n'ont pas besoin des favoris — on masque le bouton
+  if (role === 'recruiter' || role === 'recruteur') return null;
+
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [animating, setAnimating] = useState(false);

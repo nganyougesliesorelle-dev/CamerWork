@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin, Calendar, CheckCircle, Banknote } from 'lucide-react';
 import { FavoriteButton } from '../composants/FavoriteButton';
+import { ReportButton } from '../security/ReportButton';
 import { auth } from '../firebase/firebaseConfig';
 
 export function JobCard({ job, onClick }) {
@@ -62,6 +63,12 @@ export function JobCard({ job, onClick }) {
         </div>
         <div className="flex items-center gap-2">
           <FavoriteButton job={job} userId={userId} size="sm" showTooltip={false} />
+          <ReportButton
+            targetId={job.id}
+            targetType="job"
+            recruiterId={job.recruiterId}
+            variant="icon"
+          />
           <span className="text-cyan-600 text-xs font-bold group-hover:underline">Voir détails →</span>
         </div>
       </div>

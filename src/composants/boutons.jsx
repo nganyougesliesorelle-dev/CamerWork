@@ -29,13 +29,13 @@ export function LanguageSwitcher({ className = '', variant = 'pill' }) {
           onClick={() => switchTo('fr')}
           className={`${baseBtn} ${currentLang === 'fr' ? 'bg-cyan-500 text-white' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}
         >
-          🇫🇷 FR
+          🇫🇷 Français FR
         </button>
         <button
           onClick={() => switchTo('en')}
           className={`${baseBtn} ${currentLang === 'en' ? 'bg-cyan-500 text-white' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}
         >
-          🇬🇧 EN
+          🇬🇧 English EN
         </button>
       </div>
     );

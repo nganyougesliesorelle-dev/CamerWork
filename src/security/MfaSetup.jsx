@@ -23,7 +23,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase/firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
-import { Shield, ShieldCheck, Smartphone, Key, QrCode, Check, AlertTriangle, Loader } from 'lucide-react';
+import { Shield, ShieldCheck, Smartphone, Key, QrCode, Check, CheckCircle2, AlertTriangle, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function MfaSetup() {

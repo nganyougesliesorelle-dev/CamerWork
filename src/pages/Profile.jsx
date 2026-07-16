@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, 
   Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle, MessageSquare, 
-  Camera, Calendar, TrendingUp, Users, UserPlus, MessageCircle, ChevronRight, Settings, LogOut,
-  Image, FolderOpen, Trash2, Edit3, Building2, Sparkles, Globe,
+  Camera, Calendar, TrendingUp, Users, UserPlus, MessageCircle, ChevronRight, Settings,
+  Image, FolderOpen, Trash2, Edit3, Building2, Sparkles, Globe, Heart,
 } from 'lucide-react'; 
 import { useNavigate, useParams } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/firebaseConfig';
@@ -85,44 +85,6 @@ export function Profile() {
   ];
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const targetId = id || user?.uid;
-      if (!targetId) {
-        setLoading(false);
-        return;
-      }
-      fetchProfile(targetId);
-      
-      if (user) {
-        requestNotificationPermission(user.uid);
-      }
-
-      // Vérifier si un entretien est programmé (pour le visiteur non-propriétaire)
-      if (!isMyProfile && user) {
-        setCheckingInterview(true);
-        const appQ = query(
-          collection(db, "applications"),
-          where("candidateId", "==", targetId),
-          where("recruiterId", "==", user.uid)
-        );
-        getDocs(appQ).then(snap => {
-          const hasAccepted = snap.docs.some(d => {
-            const s = d.data().status;
-            return s === 'accepted' || s === 'retenu';
-          });
-          setHasScheduledInterview(hasAccepted);
-          setCheckingInterview(false);
-        }).catch(() => setCheckingInterview(false));
-      }
-
-      if (isMyProfile) {
-        const unsubscribeHistory = fetchHistory(targetId);
-        return () => {
-          if (unsubscribeHistory) unsubscribeHistory();
-        };
-      }
-    });
-
     const fetchProfile = async (targetId) => {
       try {
         const docRef = doc(db, "users", targetId);
@@ -187,6 +149,44 @@ export function Profile() {
       });
     };
 
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const targetId = id || user?.uid;
+      if (!targetId) {
+        setLoading(false);
+        return;
+      }
+      fetchProfile(targetId);
+      
+      if (user) {
+        requestNotificationPermission(user.uid);
+      }
+
+      // Vérifier si un entretien est programmé (pour le visiteur non-propriétaire)
+      if (!isMyProfile && user) {
+        setCheckingInterview(true);
+        const appQ = query(
+          collection(db, "applications"),
+          where("candidateId", "==", targetId),
+          where("recruiterId", "==", user.uid)
+        );
+        getDocs(appQ).then(snap => {
+          const hasAccepted = snap.docs.some(d => {
+            const s = d.data().status;
+            return s === 'accepted' || s === 'retenu';
+          });
+          setHasScheduledInterview(hasAccepted);
+          setCheckingInterview(false);
+        }).catch(() => setCheckingInterview(false));
+      }
+
+      if (isMyProfile) {
+        const unsubscribeHistory = fetchHistory(targetId);
+        return () => {
+          if (unsubscribeHistory) unsubscribeHistory();
+        };
+      }
+    });
+
     return () => unsubscribe();
   }, [id, isMyProfile]);
 
@@ -201,7 +201,6 @@ export function Profile() {
         skills: candidate.skills || [],
         location: candidate.location || "",
         cvUrl: candidate.cvUrl || "",
-        country: candidate.country || "",
         gender: candidate.gender || "",
         birthDate: candidate.birthDate || "",
         username: candidate.username || "",
@@ -332,15 +331,6 @@ export function Profile() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      toast.success(t('notifications.success_logout'));
-      navigate('/');
-    } catch (_err) {
-      toast.error(t('notifications.error_logout'));
-    }
-  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-sky-50 dark:bg-gray-900">
@@ -415,7 +405,7 @@ export function Profile() {
                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                   {candidate.role === 'recruiter' ? t('profile.recruiter') : t('profile.candidate')}
                 </span>
-                {candidate.role === 'recruiter' && <KycBadge status={candidate.kycStatus || 'unverified'} />}
+                {candidate.role === 'recruiter' && <KycBadge status={candidate.kycStatus || 'unverified'} isValidated={candidate.isValidated} />}
               </div>
               {isMyProfile || hasScheduledInterview ? (
                 <p className="text-sky-300 dark:text-gray-400 text-sm font-medium flex items-center gap-2">
@@ -550,19 +540,7 @@ export function Profile() {
                 ) : null}
                 <div className="flex items-center gap-3 text-sm">
                   <Globe size={15} className="text-sky-400 dark:text-gray-400 shrink-0" />
-                  {isEditing ? (
-                    <select 
-                      value={candidate.country || 'Cameroun'} 
-                      onChange={(e) => setCandidate({...candidate, country: e.target.value})}
-                      className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
-                    >
-                      <option value="Cameroun">Cameroun</option>
-                      <option value="France">France</option>
-                      <option value="Canada">Canada</option>
-                    </select>
-                  ) : (
-                    <span className="text-sky-700 dark:text-gray-300 font-medium">{candidate.country || "Cameroun"}</span>
-                  )}
+                  <span className="text-sky-700 dark:text-gray-300 font-medium">Cameroun</span>
                 </div>
                 {isCandidateUser && (
                   <>
@@ -645,6 +623,7 @@ export function Profile() {
             </div>
 
             {/* Tableau de bord recruteur */}
+            {/* Tableau de bord recruteur */}
             {candidate.role === 'recruiter' && isMyProfile && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-3">
                 <button 
@@ -656,6 +635,22 @@ export function Profile() {
                     <span className="text-xs font-bold">Tableau Recruteur</span>
                   </div>
                   <ChevronRight size={15} className="text-sky-400 dark:text-gray-400" />
+                </button>
+              </div>
+            )}
+
+            {/* Mes favoris (candidat uniquement) */}
+            {candidate.role !== 'recruiter' && isMyProfile && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-3">
+                <button 
+                  onClick={() => navigate('/favoris')}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Heart size={16} className="group-hover:fill-red-500 transition-all" />
+                    <span className="text-xs font-bold">Mes favoris</span>
+                  </div>
+                  <ChevronRight size={15} className="text-red-400" />
                 </button>
               </div>
             )}
@@ -705,21 +700,6 @@ export function Profile() {
             </div>
             )}
 
-            {/* Déconnexion — visible uniquement par le propriétaire */}
-            {isMyProfile && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-3">
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <LogOut size={16} />
-                  <span className="text-xs font-bold">Déconnexion</span>
-                </div>
-                <ChevronRight size={15} />
-              </button>
-            </div>
-            )}
           </div>
 
           {/* ===== RIGHT COLUMN (2/3) ===== */}
@@ -920,6 +900,7 @@ export function Profile() {
           </div>
         </div>
       </div>
+
     </div>
     </AnimatedPage>
   );

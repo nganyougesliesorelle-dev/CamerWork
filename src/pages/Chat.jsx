@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, Briefcase, Building2, ShieldCheck, UserCheck, FileText, Calendar, Phone, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -39,67 +39,44 @@ export function Chat() {
     const user = auth.currentUser;
     if (!user) { navigate('/'); return; }
 
-    const fetchChatInfo = async () => {
-      try {
-        const chatRef = doc(db, "chats", chatId);
-        const chatDoc = await getDoc(chatRef);
-        
-        if (chatDoc.exists()) {
-          const data = chatDoc.data();
-          setChatInfo(data);
-          const otherId = user.uid === data.recruiterId ? data.candidateId : data.recruiterId;
-          if (otherId) {
-            const userSnap = await getDoc(doc(db, "users", otherId));
-            if (userSnap.exists()) setCandidateProfile(userSnap.data());
-          }
-        } else {
-          const parts = chatId.split('_');
-          if (parts.length >= 2) {
-            const [id1, id2] = parts;
-            const otherId = user.uid === id1 ? id2 : id1;
-            const userSnap = await getDoc(doc(db, "users", otherId));
-            const otherData = userSnap.exists() ? userSnap.data() : {};
-            const initialData = {
-              companyName: otherData.company || otherData.displayName || 'Discussion',
-              jobTitle: otherData.role === 'recruiter' ? 'Recruteur' : 'Candidat',
-              recruiterId: id1, candidateId: id2,
-              createdAt: serverTimestamp(),
-              lastMessage: t('chat.discussion_initiated'),
-              lastMessageAt: serverTimestamp(),
-              isDM: true,
-            };
-            await setDoc(chatRef, initialData);
-            setChatInfo(initialData);
-            if (userSnap.exists()) setCandidateProfile(otherData);
-          } else {
-            toast.error(t('chat.not_found'));
-            navigate(-1);
-          }
-        }
-      } catch (_e) { /* ignore */ }
-    };
-
-    fetchChatInfo();
+    // Déterminer l'autre participant à partir du chatId (uid1_uid2)
+    const parts = chatId.split('_');
+    if (parts.length >= 2) {
+      const otherId = user.uid === parts[0] ? parts[1] : parts[0];
+      getDoc(doc(db, "users", otherId)).then(snap => {
+        if (snap.exists()) setCandidateProfile(snap.data());
+      });
+      setChatInfo({ recruiterId: parts[0], candidateId: parts[1] });
+    }
 
     const q = query(collection(db, "messages"), where("chatId", "==", chatId), orderBy("timestamp", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    }, () => { setLoading(false); });
+    }, (err) => { console.error('[Chat] Erreur écoute des messages :', err); setLoading(false); });
 
     return () => unsubscribe();
   }, [chatId, navigate]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
+  /**
+   * Envoi d'un message avec création automatique du chat si nécessaire.
+   * L'ancienne règle ==request.time empêchait la création du chat ;
+   * on garantit maintenant qu'il existe avant d'écrire le message.
+   */
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUser) return;
     const text = newMessage.trim(); setNewMessage('');
     try {
-      await addDoc(collection(db, "messages"), { chatId, senderId: currentUser.uid, text, timestamp: serverTimestamp() });
-      await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
-    } catch (_e) { toast.error(t('chat.send_error')); }
+      await addDoc(collection(db, "messages"), {
+        chatId, senderId: currentUser.uid, text, timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.error('[Chat] Erreur envoi :', err);
+      toast.error(`Erreur d'envoi : ${err.message}`);
+    }
   };
 
   /** Nouveau : proposer 3 créneaux */
@@ -119,7 +96,6 @@ export function Chat() {
         acceptedSlot: null,
         timestamp: serverTimestamp(),
       });
-      await updateDoc(doc(db, "chats", chatId), { lastMessage: text, lastMessageAt: serverTimestamp() });
       toast.success(t('notifications.interview_proposed'));
       setSlot1(''); setSlot2(''); setSlot3('');
       setScheduling(false);

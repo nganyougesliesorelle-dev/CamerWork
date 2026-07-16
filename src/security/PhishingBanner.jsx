@@ -63,7 +63,7 @@ export function PhishingBanner() {
             rel="noopener noreferrer"
             className="text-[10px] sm:text-xs font-black uppercase bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
           >
-            <ExternalLink size={11} /> Site officiel
+            <ExternalLink size={11} />
           </a>
           <button
             onClick={handleDismiss}

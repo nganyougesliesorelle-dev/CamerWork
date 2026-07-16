@@ -10,7 +10,7 @@ import { db, auth } from '../firebase/firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { getMissingSkills } from '../firebase/matchingEngine';
 import { getResourcesForSkill } from '../data/interviewQuestions';
-import { Target, BookOpen, Briefcase, Clock, CheckCircle2, XCircle, ExternalLink, TrendingUp, ChevronDown, ChevronUp, Lightbulb, ArrowLeft } from 'lucide-react';
+import { Target, BookOpen, Briefcase, Clock, CheckCircle2, XCircle, ExternalLink, TrendingUp, ChevronDown, ChevronUp, Lightbulb, ArrowLeft, Heart } from 'lucide-react';
 
 export function CandidateDashboard() {
   const { t } = useTranslation();
@@ -288,6 +288,25 @@ export function CandidateDashboard() {
               })}
             </div>
           )}
+        </div>
+
+        {/* SECTION 3 : Accès rapide aux favoris */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30 p-5">
+          <button
+            onClick={() => navigate('/favoris')}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center justify-center group-hover:bg-red-100 dark:group-hover:bg-red-900/40 transition-all">
+                <Heart size={18} className="text-red-500 group-hover:fill-red-500 transition-all" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-black text-sky-800 dark:text-gray-100">Mes offres favorites</p>
+                <p className="text-xs text-sky-400 dark:text-gray-400 mt-0.5">Consultez les offres que vous avez sauvegardées</p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-sky-300 dark:text-gray-500 group-hover:text-red-400 transition-all" />
+          </button>
         </div>
       </div>
     </div>

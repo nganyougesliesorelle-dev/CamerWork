@@ -14,6 +14,23 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { initiateLogin, completeMfaChallenge, isMfaError } from './mfaService';
 
+// Domaines gratuits — tout autre domaine est considéré professionnel
+const FREE_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.fr', 'ymail.com',
+  'outlook.com', 'outlook.fr', 'hotmail.com', 'hotmail.fr', 'live.com', 'live.fr', 'msn.com',
+  'aol.com', 'aol.fr', 'icloud.com', 'me.com', 'mac.com',
+  'protonmail.com', 'proton.me', 'pm.me', 'mail.com', 'email.com',
+  'gmx.com', 'gmx.fr', 'gmx.de', 'web.de', 'laposte.net',
+  'orange.fr', 'wanadoo.fr', 'sfr.fr', 'free.fr',
+  'yandex.com', 'yandex.ru', 'mail.ru', 'bk.ru', 'inbox.ru', 'list.ru',
+  'inbox.com', 'zoho.com',
+]);
+
+const isProfessionalEmail = (email) => {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return domain && !FREE_DOMAINS.has(domain);
+};
+
 /**
  * 1. INSCRIPTION + ENVOI DU MAIL DE CONFIRMATION (Champs additionnels inclus)
  */
@@ -43,7 +60,19 @@ export const registerUser = async (email, password, role, fullName, additionalFi
       gender: additionalFields.gender || "",
       birthDate: additionalFields.birthDate || "",
       country: additionalFields.country || "Cameroun",
-      location: additionalFields.location || ""
+      location: additionalFields.location || "",
+      // Champs recruteur
+      niu: additionalFields.niu || "",
+      company: additionalFields.company || "",
+      creationDate: additionalFields.creationDate || "",
+      isValidated: false,
+      kycStatus: 'unverified',
+      validationPriority: isProfessionalEmail(email) ? 'high' : 'standard',
+      validationSteps: {
+        step1_dgi: false,
+        step2_email: isProfessionalEmail(email),
+        step3_approved: false,
+      }
     });
 
     return { success: true, user, role, msg: "Un e-mail de confirmation vous a été envoyé." };

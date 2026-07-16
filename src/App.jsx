@@ -54,6 +54,9 @@ const SettingsPage = lazy(() =>
 const FavoritesPage = lazy(() =>
   import('./pages/FavoritesPage').then(m => ({ default: m.FavoritesPage }))
 );
+const AdminDashboard = lazy(() =>
+  import('./pages/AdminDashboard')
+);
 
 // ── Suspense fallback ──────────────────────────────────────────
 function PageLoader() {
@@ -183,6 +186,7 @@ function App() {
                 <Route path="/DashboardRecruiter" element={<DashboardRecruiter />} />
                 <Route path="/RecruiterPost" element={<RecruiterPost />} />
                 <Route path="/favoris" element={<FavoritesPage />} />
+                <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/parametres" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>

@@ -7,7 +7,6 @@ import { requestNotificationPermission } from '../firebase/notificationService';
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader } from 'lucide-react';
-import { LanguageSwitcher } from '../composants/boutons';
 
 const Home = () => {
   const { t } = useTranslation();
@@ -29,6 +28,7 @@ const Home = () => {
   const [gender, setGender] = useState('Masculin');
   const [birthDate, setBirthDate] = useState('');
   const [creationDate, setCreationDate] = useState(''); // Pour le recruteur
+  const [niu, setNiu] = useState(''); // NIU (Numéro d'Identifiant Unique) pour recruteur
   const [agreeTerms, setAgreeTerms] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -85,6 +85,27 @@ const Home = () => {
     }
   };
 
+  // Vérifie si l'email utilise un fournisseur gratuit (non-professionnel)
+  const isFreeEmailProvider = (email) => {
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return false;
+    const freeDomains = [
+      'gmail.com', 'googlemail.com',
+      'yahoo.com', 'yahoo.fr', 'ymail.com',
+      'outlook.com', 'outlook.fr', 'hotmail.com', 'hotmail.fr', 'live.com', 'live.fr', 'msn.com',
+      'aol.com', 'aol.fr',
+      'icloud.com', 'me.com', 'mac.com',
+      'protonmail.com', 'proton.me', 'pm.me',
+      'mail.com', 'email.com',
+      'gmx.com', 'gmx.fr', 'gmx.de', 'web.de',
+      'laposte.net',
+      'orange.fr', 'wanadoo.fr', 'sfr.fr', 'free.fr',
+      'yandex.com', 'yandex.ru', 'mail.ru', 'bk.ru', 'inbox.ru', 'list.ru',
+      'inbox.com', 'zoho.com',
+    ];
+    return freeDomains.includes(domain);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -99,6 +120,34 @@ const Home = () => {
     if (password.length < 6) {
       toast.error(t('notifications.error_password_short'));
       return;
+    }
+
+    // Validation téléphone camerounais
+    if (!isLoginMode && role === 'candidate' && phone.trim()) {
+      const clean = phone.trim().replace(/\s/g, '').replace(/^\+237/, '');
+      if (!/^6\d{8}$/.test(clean)) {
+        toast.error('Numéro de téléphone invalide. Format attendu : 6XX XXX XXX (9 chiffres, commence par 6).');
+        return;
+      }
+    }
+
+    // Validation email professionnel pour les recruteurs
+    if (!isLoginMode && role === 'recruiter' && isFreeEmailProvider(email.trim())) {
+      toast.error(t('notifications.error_recruiter_free_email'));
+      return;
+    }
+
+    // Validation âge minimum 18 ans
+    if (!isLoginMode && birthDate) {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      if (age < 18) {
+        toast.error('Vous devez avoir au moins 18 ans pour créer un compte.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -134,7 +183,12 @@ const Home = () => {
           toast.error(result.error || t('notifications.error_login'));
         }
       } else {
-        const result = await registerUser(cleanEmail, password, role, fullName);
+        const result = await registerUser(cleanEmail, password, role, fullName, {
+          username, gender, birthDate, country, phone,
+          niu: role === 'recruiter' ? niu : '',
+          company: role === 'recruiter' ? fullName : '',
+          creationDate: role === 'recruiter' ? creationDate : '',
+        });
         if (result.success) {
           if (auth.currentUser) {
             await sendEmailVerification(auth.currentUser);
@@ -305,10 +359,6 @@ const Home = () => {
 
       <div className="w-full max-w-md mx-auto space-y-6 pt-8 relative z-10">
         
-        {/* SÉLECTEUR DE LANGUE */}
-        <div className="flex justify-center">
-          <LanguageSwitcher variant="pill" />
-        </div>
 
         {/* LOGO CW */}
         <div className="flex justify-center">
@@ -359,7 +409,6 @@ const Home = () => {
                 <>
                   <input required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.nom')} />
                   <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.prenoms')} />
-                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.pays')} />
                   <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.email')} />
                   <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.telephone')} />
 
@@ -381,7 +430,7 @@ const Home = () => {
                 <>
                   <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.nom_entreprise')} />
                   <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.email_entreprise')} />
-                  <input required value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder={t('auth.pays')} />
+                  <input value={niu} onChange={(e) => setNiu(e.target.value)} className="w-full px-5 py-3.5 bg-[#075985] border border-white/5 rounded-xl outline-none focus:border-cyan-500 text-sm transition-all placeholder:text-sky-500 font-medium text-sky-100" placeholder="NIU (Numéro Identifiant Unique)" />
                   
                   {/* DATE DE CRÉATION */}
                   <div className="flex items-center justify-between gap-4 py-1 text-sm font-medium text-sky-300">

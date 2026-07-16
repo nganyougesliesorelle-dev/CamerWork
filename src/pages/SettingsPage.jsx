@@ -7,7 +7,6 @@ import {
   MapPin, BadgeCheck, Moon, Sun, Globe, Lock, Key, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { AnimatedPage } from '../composants/AnimatedPage';
-import { LanguageSwitcher } from '../composants/boutons';
 import { useTheme } from '../composants/ThemeContext';
 import { MfaSetup } from '../security/MfaSetup';
 import { auth, db } from '../firebase/firebaseConfig';
@@ -623,7 +622,6 @@ export function SettingsPage() {
                     </p>
                   </div>
                 </div>
-                <LanguageSwitcher />
               </div>
             </div>
           </SettingRow>

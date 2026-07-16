@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, DollarSign, Briefcase, UserCheck, ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, XCircle, DollarSign, Briefcase, UserCheck, ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,7 +9,8 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp
 // Import de la fonction de service que nous avons centralisée
 import { applyToJob, cancelApplication } from '../firebase/authService'; 
 import { AnimatedPage } from '../composants/AnimatedPage';
-import { FavoriteButton } from '../composants/FavoriteButton'; 
+import { FavoriteButton } from '../composants/FavoriteButton';
+import { ReportButton } from '../security/ReportButton';
 
 const getTypeColor = (type) => {
   const t = type?.toLowerCase();
@@ -164,9 +165,9 @@ export function JobDetails() {
 
   return (
     <AnimatedPage>
-    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 pb-32">
+    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 pb-28 overflow-x-hidden">
       {/* Header / Banner */}
-      <div className="bg-sky-900 h-64 w-full p-8 flex items-start justify-center relative overflow-hidden">
+      <div className="bg-sky-900 h-40 sm:h-56 w-full p-3 sm:p-6 flex items-start justify-center relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px]"></div>
         <div className="max-w-4xl w-full flex justify-between items-center relative z-10">
             <button onClick={() => navigate(-1)} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl backdrop-blur-md transition-all">
@@ -176,109 +177,117 @@ export function JobDetails() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 -mt-24 relative z-20">
-        {/* Main Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl shadow-sky-800/10 dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-8 md:p-12 mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
-            <div className="flex items-start justify-between w-full">
-            <div className="flex-1">
-                <div className="flex items-center gap-2 mb-4">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border ${getTypeColor(job.type)}`}>
-                        {job.type}
-                    </span>
-                    <FavoriteButton job={job} userId={auth.currentUser?.uid} size="sm" />
-                </div>
-                    <span className="flex items-center gap-1 text-sky-400 dark:text-gray-400 text-[10px] font-black uppercase">
-                        <MapPin size={12} /> {job.city}
-                    </span>
-                    {job.isScraped && (
-                      <span className="px-3 py-1 bg-sky-50 dark:bg-gray-700 border border-sky-100 dark:border-gray-700 text-cyan-600 rounded-full text-[10px] font-black uppercase tracking-wider">
-                        {t('common.partner')}
-                      </span>
-                    )}
-                </div>
-                <h1 className="text-3xl md:text-4xl font-black text-sky-900 dark:text-gray-100 leading-none mb-4 uppercase tracking-tighter">
-                    {job.title}
-                </h1>
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-sky-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-cyan-600">
-                        <Building size={20} />
-                    </div>
-                    <div>
-                        <p className="text-lg font-black text-sky-700 dark:text-gray-300 uppercase leading-none">{job.company}</p>
-                        <p className="text-teal-500 text-xs font-bold">
-                          {job.isScraped ? "Source : MinaJobs" : t('common.verified')}
-                        </p>
-                    </div>
-                </div>
-            </div>
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 -mt-20 sm:-mt-24 relative z-20">
+        {/* ── CARTE PRINCIPALE ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-[1rem] sm:rounded-[2rem] shadow-2xl shadow-sky-800/10 dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-4 sm:p-6 md:p-10 mb-6 sm:mb-8 relative">
 
+          {/* Bouton favori en haut à droite */}
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+            <FavoriteButton job={job} userId={auth.currentUser?.uid} role={userRole} size="md" />
+          </div>
+
+          {/* ── 1. ENTREPRISE ── */}
+          <div className="flex items-center gap-3 sm:gap-4 mb-5 sm:mb-6 pr-10">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-sky-500 to-cyan-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-xl shrink-0 shadow-md shadow-sky-500/20">
+              {(job.company || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg sm:text-xl font-black text-sky-800 dark:text-gray-100 leading-tight truncate">
+                {job.company}
+              </p>
+              <p className="text-xs text-sky-400 dark:text-gray-400 font-medium mt-0.5">
+                {job.isScraped ? 'Source : MinaJobs' : t('common.verified')}
+              </p>
+            </div>
+            <ReportButton
+              targetId={job.id}
+              targetType="job"
+              recruiterId={job.recruiterId}
+              variant="icon"
+              className="ml-auto shrink-0"
+            />
+          </div>
+
+          {/* ── 2. TITRE DU POSTE ── */}
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-sky-900 dark:text-gray-100 leading-snug mb-4 sm:mb-5 uppercase tracking-tight break-words max-w-full">
+            {job.title}
+          </h1>
+
+          {/* ── 3. MÉTA (type, ville, salaire) ── */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+            <span className={`px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-black uppercase border ${getTypeColor(job.type)}`}>
+              {job.type}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-sky-500 dark:text-gray-300 bg-sky-50 dark:bg-gray-700 px-3 py-1 rounded-full">
+              <MapPin size={13} /> {job.city}
+            </span>
             {job.salary && (
-                <div className="bg-sky-50 dark:bg-gray-700 border border-sky-100 dark:border-gray-700 p-6 rounded-[2rem] text-center w-full md:w-auto">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{t('jobDetails.salary_section')}</p>
-                    <p className="text-2xl font-black text-sky-600 dark:text-gray-300">{job.salary}</p>
-                    <p className="text-[10px] font-bold text-blue-400">{t('common.monthly')}</p>
-                </div>
+              <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-3 py-1 rounded-full">
+                <DollarSign size={13} /> {job.salary}
+              </span>
+            )}
+            {job.isScraped && (
+              <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 rounded-full text-[10px] font-black uppercase tracking-wider">
+                {t('common.partner')}
+              </span>
             )}
           </div>
 
           {/* --- MODULE INTEGRÉ : ENCADRÉ COACH CAMERWORK --- */}
           {!checkingSkills && missingSkills.length > 0 && !hasApplied && userRole !== 'recruiter' && (
-            <div className="mt-8 bg-gradient-to-br from-sky-900 to-blue-950 dark:from-gray-800 dark:to-gray-900 rounded-[2rem] p-6 md:p-8 text-white shadow-xl dark:shadow-gray-900/30 relative overflow-hidden border border-sky-800 dark:border-gray-700">
-              <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 text-white font-black text-9xl select-none">
-                AI
-              </div>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+            <div className="mb-6 sm:mb-8 bg-gradient-to-br from-sky-900 to-blue-950 dark:from-gray-800 dark:to-gray-900 rounded-[1rem] sm:rounded-[1.5rem] p-4 sm:p-5 md:p-6 text-white shadow-lg dark:shadow-gray-900/30 relative overflow-hidden border border-sky-800 dark:border-gray-700">
+              <div className="absolute right-2 top-2 opacity-10 text-white font-black text-8xl select-none">AI</div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-5 relative z-10">
                 <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-black uppercase tracking-wider">
+                  <div className="flex items-center gap-2 text-cyan-400 text-[10px] sm:text-xs font-black uppercase tracking-wider">
                     <Sparkles size={16} /> {t('jobDetails.coach_title')}
                   </div>
-                  <h3 className="text-xl font-black leading-tight tracking-tight uppercase">
+                  <h3 className="text-base sm:text-lg font-black leading-tight tracking-tight uppercase">
                     {t('jobDetails.coach_subtitle')}
                   </h3>
-                  <p className="text-sky-300 text-sm font-medium leading-relaxed max-w-xl">
+                  <p className="text-sky-300 text-xs sm:text-sm font-medium leading-relaxed max-w-xl">
                     {t('jobDetails.coach_body')}
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     {missingSkills.map((skill, index) => (
-                      <span key={index} className="px-3 py-1 bg-white/10 text-amber-300 rounded-xl text-xs font-black uppercase border border-white/5">
+                      <span key={index} className="px-2.5 py-1 bg-white/10 text-amber-300 rounded-lg text-[10px] sm:text-xs font-black uppercase border border-white/5">
                         {skill}
                       </span>
                     ))}
                   </div>
                 </div>
-                
                 <button 
                   onClick={() => navigate('/mon-profil')} 
-                  className="bg-cyan-500 hover:bg-cyan-600 text-sky-900 text-sm font-black uppercase px-6 py-4 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap self-start md:self-center shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                  className="bg-cyan-500 hover:bg-cyan-600 text-sky-900 text-xs font-black uppercase px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 self-start sm:self-center shadow-lg shadow-cyan-500/20 active:scale-95 transition-all w-full sm:w-auto shrink-0"
                 >
                   {t('jobDetails.coach_cta')} <ArrowRight size={16} />
                 </button>
               </div>
             </div>
           )}
-          {/* ----------------------------------------------- */}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 border-t border-sky-50 dark:border-gray-700 pt-12">
+          {/* ── GRILLE DESCRIPTION / PROFIL ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-8 border-t border-sky-100 dark:border-gray-700 pt-5 sm:pt-8">
             {/* Left: Description & Missions */}
-            <div className="space-y-10">
+            <div className="space-y-6 sm:space-y-8">
                 <div>
-                    <h2 className="text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Briefcase size={16} className="text-cyan-600" /> {t('jobDetails.description')}
+                    <h2 className="text-[10px] sm:text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
+                      <Briefcase size={14} className="text-cyan-500" /> {t('jobDetails.description')}
                     </h2>
-                    <p className="text-sky-600 dark:text-gray-300 leading-relaxed font-medium text-lg whitespace-pre-line">
-                        {job.description || "Consultez les missions pour plus de détails sur le poste."}
+                    <p className="text-sky-600 dark:text-gray-300 leading-relaxed font-medium text-sm sm:text-base whitespace-pre-line">
+                      {job.description || "Consultez les missions pour plus de détails sur le poste."}
                     </p>
                 </div>
 
                 <div>
-                    <h2 className="text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <CheckCircle size={16} className="text-cyan-600" /> {t('jobDetails.missions')}
+                    <h2 className="text-[10px] sm:text-xs font-black text-sky-400 dark:text-gray-400 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
+                      <CheckCircle size={14} className="text-cyan-500" /> {t('jobDetails.missions')}
                     </h2>
-                    <ul className="space-y-4">
+                    <ul className="space-y-2.5 sm:space-y-3">
                         {job.missions?.map((m, i) => (
-                            <li key={i} className="flex gap-4 p-4 bg-sky-50 dark:bg-gray-700 rounded-2xl text-sky-700 dark:text-gray-300 font-bold text-sm">
-                                <span className="text-cyan-600">{i+1}.</span> {m}
+                            <li key={i} className="flex gap-3 p-3 sm:p-4 bg-sky-50 dark:bg-gray-700 rounded-xl sm:rounded-2xl text-sky-700 dark:text-gray-300 font-semibold text-xs sm:text-sm">
+                              <span className="text-cyan-500 font-black shrink-0">{i+1}.</span>
+                              <span>{m}</span>
                             </li>
                         ))}
                     </ul>
@@ -287,13 +296,15 @@ export function JobDetails() {
 
             {/* Right: Profile Required */}
             <div>
-                <div className="bg-sky-900 rounded-[2rem] p-8 text-white">
-                    <h2 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-6">{t('jobDetails.profile_required')}</h2>
+                <div className="bg-gradient-to-br from-sky-800 to-sky-950 dark:from-gray-800 dark:to-gray-900 rounded-[1rem] sm:rounded-[1.5rem] p-4 sm:p-6 text-white shadow-inner shadow-white/5">
+                    <h2 className="text-[10px] sm:text-xs font-black text-sky-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <Sparkles size={14} className="text-cyan-400" /> {t('jobDetails.profile_required')}
+                    </h2>
                     <ul className="space-y-4">
                         {job.profile?.map((p, i) => (
-                            <li key={i} className="flex items-start gap-3 text-sm font-medium">
-                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></div>
-                                <span className="text-sky-300">{p}</span>
+                            <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm font-medium">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></div>
+                                <span className="text-sky-100 leading-relaxed">{p}</span>
                             </li>
                         ))}
                     </ul>
@@ -304,8 +315,8 @@ export function JobDetails() {
       </div>
 
       {/* Floating Action Bar */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 z-50">
-        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-white dark:border-gray-700 shadow-2xl dark:shadow-gray-900/30 p-4 rounded-[2.5rem] flex items-center gap-4">
+      <div className="fixed bottom-2 sm:bottom-6 left-1/2 -translate-x-1/2 w-full max-w-full sm:max-w-lg px-2 sm:px-4 z-50">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-white dark:border-gray-700 shadow-2xl dark:shadow-gray-900/30 p-2.5 sm:p-3 rounded-[1rem] sm:rounded-[2rem] flex items-center gap-1.5 sm:gap-3">
           {hasApplied && !job.isScraped ? (
             <div className="w-full flex items-center gap-2">
               <div className="flex-1 bg-teal-50 dark:bg-teal-900/30 text-teal-600 py-4 rounded-2xl font-black flex items-center justify-center gap-3 text-sm">

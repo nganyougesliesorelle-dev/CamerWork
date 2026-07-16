@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
 import { useTranslation } from 'react-i18next';
-import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { dispatchJobOpportunities } from '../firebase/authService'; 
 import { canRecruiterPost } from '../composants/KycBadge'; 
 
@@ -81,13 +81,29 @@ const STEPS = [
     if (formData.missions.filter(m => m.trim()).length === 0) return toast.error(t('recruiter.add_mission'));
 
     const userDoc = await getDoc(doc(db, "users", user.uid));
+    let userData = null;
     if (userDoc.exists()) {
-      const userData = userDoc.data();
+      userData = userDoc.data();
       if (userData.role === 'recruiter' || userData.role === 'recruteur') {
-        if (!canRecruiterPost(userData.kycStatus || 'unverified', userData.createdAt)) {
+        if (!canRecruiterPost(userData.kycStatus || 'unverified', userData.createdAt, userData.isValidated)) {
           toast.error('🔒 Votre compte doit être vérifié (KYC) pour publier des offres. Veuillez contacter le support CamerWork.', { duration: 7000 });
           return;
         }
+      }
+    }
+
+    // Vérifier la limite pour les recruteurs non validés
+    const isRecruiterValidated = userData?.isValidated === true || userData?.kycStatus === 'verified';
+    if (!editJob && userData?.role === 'recruiter' && !isRecruiterValidated) {
+      const pendingQ = query(
+        collection(db, 'jobs'),
+        where('recruiterId', '==', user.uid),
+        where('status', 'in', ['pending_moderation', 'draft'])
+      );
+      const pendingSnap = await getDocs(pendingQ);
+      if (pendingSnap.size >= 1) {
+        toast.error('⏳ Vous avez déjà une offre en attente de modération. Votre profil doit être vérifié par l\'administration pour en publier davantage.', { duration: 6000 });
+        return;
       }
     }
 
@@ -110,8 +126,13 @@ const STEPS = [
         await dispatchJobOpportunities({ id: editJob.id, ...payload });
         toast.success(t('notifications.success_job_updated'));
       } else {
-        const docRef = await addDoc(collection(db, "jobs"), { ...payload, status: 'open', createdAt: serverTimestamp() });
-        await dispatchJobOpportunities({ id: docRef.id, ...payload });
+        // Recruteur non validé → offre en pending_moderation, sinon open
+        const jobStatus = (!isRecruiterValidated && userData?.role === 'recruiter') ? 'pending_moderation' : 'open';
+        const docRef = await addDoc(collection(db, "jobs"), { ...payload, status: jobStatus, createdAt: serverTimestamp() });
+        if (jobStatus === 'open') {
+          await dispatchJobOpportunities({ id: docRef.id, ...payload });
+        }
+        // Message identique pour ne pas révéler le statut pending_moderation au recruteur
         toast.success(t('notifications.success_job_posted'));
       }
       setTimeout(() => navigate('/DashboardRecruiter'), 1500);

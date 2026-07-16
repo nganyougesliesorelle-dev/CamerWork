@@ -1,9 +1,8 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 import { ArrowRight, Sparkles, CheckCircle2, MessageSquare, Briefcase, Zap, Mail } from 'lucide-react';
 import { useLang } from '../composants/LangContext';
-import { LanguageSwitcher } from '../composants/boutons';
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -30,15 +29,8 @@ export function LandingPage() {
 
           {/* Langue + Connexion à droite */}
           <div className="flex items-center gap-3">
-            <LanguageSwitcher variant="icon" />
             <button onClick={toggleDarkMode} className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${darkMode ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`} title={darkMode ? 'Mode clair' : 'Mode nuit'}>
               {darkMode ? '☀️' : '🌙'}
-            </button>
-            <button 
-              onClick={() => navigate('/login')} 
-              className="text-sm font-semibold text-sky-600 hover:text-sky-600 transition-colors"
-            >
-              {t('auth.connexion')}
             </button>
             <button 
               onClick={() => navigate('/login')} 
@@ -77,10 +69,10 @@ export function LandingPage() {
             </p>
 
             {/* Boutons d'inscription */}
-            <div className="flex flex-col items-center gap-3 max-w-md mx-auto lg:mx-0 pt-2">
+            <div className="flex flex-col sm:flex-row items-center gap-4 max-w-md mx-auto lg:mx-0 pt-2">
               <button
                 onClick={() => navigate('/login')}
-                className="w-full sm:w-auto bg-white hover:bg-sky-100 text-sky-900 text-xs font-black uppercase tracking-wider px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto bg-white hover:bg-sky-100 text-sky-900 text-xs font-black uppercase tracking-wider px-6 py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -92,7 +84,7 @@ export function LandingPage() {
               </button>
               <button
                 onClick={() => navigate('/login')}
-                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-black uppercase tracking-wider px-8 py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-black uppercase tracking-wider px-6 py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 <Mail size={18} />
                 S'inscrire avec l'email

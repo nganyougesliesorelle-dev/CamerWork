@@ -52,6 +52,7 @@
     "valider": "Valider",
     "retour_connexion": "Retour à la connexion",
     "code_mfa_placeholder": "Saisissez le code à 6 chiffres de votre application d'authentification.",
+    "niu": "NIU (Numéro Identifiant Unique)",
     "connected_as": "Connecté en tant que"
   },
   "profile": {
@@ -96,6 +97,7 @@
     "error_password_short": "Le mot de passe doit faire au moins 6 caractères.",
     "error_terms": "Veuillez accepter les termes et conditions.",
     "error_valid_name": "Veuillez entrer un nom valide.",
+    "error_recruiter_free_email": "Les recruteurs doivent utiliser une adresse email professionnelle (ex: rh@entreprise.cm). Les emails gratuits (Gmail, Yahoo, etc.) ne sont pas acceptés.",
     "verify_email_first": "Veuillez valider votre adresse e-mail avant de vous connecter.",
     "success_verified": "Compte validé avec succès ! Bienvenue.",
     "error_verification": "Erreur lors de la vérification.",

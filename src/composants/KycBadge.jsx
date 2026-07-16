@@ -30,9 +30,15 @@ const KYC_CONFIG = {
     classes: 'bg-sky-50 text-sky-500 border-sky-200',
     dot: 'bg-sky-300',
   },
+  suspended: {
+    icon: ShieldAlert,
+    label: 'Suspendu',
+    classes: 'bg-red-50 text-red-700 border-red-200',
+    dot: 'bg-red-500',
+  },
 };
 
-export function KycBadge({ status = 'unverified', size = 'sm' }) {
+export function KycBadge({ status = 'unverified', isValidated, size = 'sm' }) {
   const config = KYC_CONFIG[status] || KYC_CONFIG.unverified;
   const Icon = config.icon;
 
@@ -59,7 +65,9 @@ export function KycBadge({ status = 'unverified', size = 'sm' }) {
  * Bloque les recruteurs non vérifiés après un délai de grâce.
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function canRecruiterPost(kycStatus, createdAt) {
+export function canRecruiterPost(kycStatus, createdAt, isValidated) {
+  if (kycStatus === 'suspended') return false; // Compte suspendu
+  if (isValidated === true) return true; // Validé par l'admin
   if (kycStatus === 'verified') return true;
   if (kycStatus === 'pending') return true; // tolérance pendant la vérification
   // Compte non vérifié : autorisé pendant 7 jours après création, puis bloqué

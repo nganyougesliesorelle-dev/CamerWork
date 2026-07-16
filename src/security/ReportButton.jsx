@@ -13,10 +13,13 @@
 import { useState } from 'react';
 import { Flag, X, Send, CheckCircle2 } from 'lucide-react';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 const REPORT_REASONS = [
+  { value: 'processing_fees', label: 'Demande de frais de dossier' },
+  { value: 'medical_tests', label: 'Demande de tests médicaux payants' },
+  { value: 'paid_training', label: 'Formation d\'intégration payante exigée' },
   { value: 'scam', label: 'Arnaque / Escroquerie' },
   { value: 'impersonation', label: 'Usurpation d\'identité' },
   { value: 'harassment', label: 'Harcèlement' },
@@ -26,7 +29,9 @@ const REPORT_REASONS = [
   { value: 'other', label: 'Autre' },
 ];
 
-export function ReportButton({ targetId, targetType = 'user', className = '', variant = 'icon' }) {
+const SUSPEND_THRESHOLD = 3;
+
+export function ReportButton({ targetId, targetType = 'user', recruiterId, className = '', variant = 'icon' }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
@@ -53,9 +58,30 @@ export function ReportButton({ targetId, targetType = 'user', className = '', va
         targetType,
         reason,
         details: details.trim() || '',
-        status: 'pending', // pending → under_review → resolved
+        status: 'pending',
         createdAt: serverTimestamp(),
       });
+
+      // Auto-suspend : si un recruteur atteint 3 signalements, suspension automatique
+      const suspendTargetId = recruiterId || (targetType === 'user' ? targetId : null);
+      if (suspendTargetId) {
+        const reportsQ = query(
+          collection(db, 'reports'),
+          where('targetId', '==', suspendTargetId),
+          where('status', 'in', ['pending', 'under_review'])
+        );
+        const reportsSnap = await getDocs(reportsQ);
+        if (reportsSnap.size >= SUSPEND_THRESHOLD) {
+          try {
+            await updateDoc(doc(db, 'users', suspendTargetId), {
+              isSuspended: true,
+              kycStatus: 'suspended',
+              suspendedAt: serverTimestamp(),
+              suspensionReason: `Suspension automatique : ${reportsSnap.size} signalements reçus.`,
+            });
+          } catch (_) { /* silencieux — l'admin sera notifié */ }
+        }
+      }
 
       setSubmitted(true);
       toast.success('Signalement envoyé. Merci de contribuer à la sécurité de CamerWork.');

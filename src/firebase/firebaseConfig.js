@@ -1,30 +1,41 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
 import { getMessaging } from "firebase/messaging"; // Ajouté pour le build
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBxTb3bWqQCDlTGRG9B4XEE9ik9ZBjOkuQ",
-  authDomain: "camerwork-1e3d0.firebaseapp.com",
-  projectId: "camerwork-1e3d0",
-  storageBucket: "camerwork-1e3d0.firebasestorage.app",
-  messagingSenderId: "124342889976",
-  appId: "1:124342889976:web:6198946af6b190962c3a0d"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Garde-fou : alerter en dev si une variable critique est absente
+if (import.meta.env.DEV) {
+  const missing = [];
+  if (!firebaseConfig.apiKey) missing.push('VITE_FIREBASE_API_KEY');
+  if (!firebaseConfig.projectId) missing.push('VITE_FIREBASE_PROJECT_ID');
+  if (!firebaseConfig.appId) missing.push('VITE_FIREBASE_APP_ID');
+  if (missing.length > 0) {
+    console.error(
+      `[Firebase] Variables d'environnement manquantes : ${missing.join(', ')}.\n` +
+      `Vérifiez que le fichier .env existe à la racine du projet avec les préfixes VITE_.`
+    );
+  }
+}
 
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Persistance IndexedDB activée dès la création de l'instance Firestore
+// → Pas de race condition : aucun module ne peut toucher db avant la persistance
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+});
+
 export const storage = getStorage(app); 
 export const messaging = getMessaging(app);
-
-// Mode hors-ligne PWA : persistance IndexedDB
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Persistence failed: multiple tabs open');
-  } else if (err.code === 'unimplemented') {
-    console.warn('Persistence not supported in this browser');
-  }
-});
