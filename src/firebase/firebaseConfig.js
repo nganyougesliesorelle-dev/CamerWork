@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
-import { getMessaging } from "firebase/messaging"; // Ajouté pour le build
+import { getMessaging, isSupported } from "firebase/messaging"; // Import de isSupported pour sécuriser le build
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -32,10 +32,24 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Persistance IndexedDB activée dès la création de l'instance Firestore
-// → Pas de race condition : aucun module ne peut toucher db avant la persistance
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 });
 
 export const storage = getStorage(app); 
-export const messaging = getMessaging(app);
+
+// Initialisation sécurisée de Messaging pour éviter les plantages au Build
+let messagingInstance = null;
+
+// On vérifie si l'environnement (le navigateur) supporte Firebase Messaging avant d'appeler getMessaging
+isSupported().then((supported) => {
+  if (supported) {
+    messagingInstance = getMessaging(app);
+  } else {
+    console.warn("[Firebase] Les notifications push ne sont pas supportées sur ce navigateur.");
+  }
+}).catch((err) => {
+  console.error("[Firebase] Erreur lors de la vérification du support de Messaging :", err);
+});
+
+export const messaging = messagingInstance;

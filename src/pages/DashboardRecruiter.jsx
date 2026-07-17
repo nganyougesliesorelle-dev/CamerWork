@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, Users, CheckCircle, XCircle, ExternalLink, PlusCircle, 
   LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, MessageSquare, 
@@ -195,6 +195,9 @@ export function DashboardRecruiter() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/messages')} className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all" title="Messages">
+                <MessageCircle size={18} />
+              </button>
               <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
                 <Bell size={18} />
                 {notifications.filter(n => !n.read).length > 0 && (

@@ -3,7 +3,7 @@ import {
   User, Mail, Phone, Briefcase, MapPin, Link as LinkIcon, Save, ArrowLeft, 
   Plus, X, Upload, FileText, Clock, CheckCircle2, XCircle, MessageSquare, 
   Camera, Calendar, TrendingUp, Users, UserPlus, MessageCircle, ChevronRight, Settings,
-  Image, FolderOpen, Trash2, Edit3, Building2, Sparkles, Globe, Heart,
+  Image, FolderOpen, Trash2, Edit3, Building2, Sparkles, Globe, Heart, Bell,
 } from 'lucide-react'; 
 import { useNavigate, useParams } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/firebaseConfig';
@@ -44,9 +44,21 @@ export function Profile() {
   const [matchScores, setMatchScores] = useState({});
   const candidateRef = useRef(null);
   const [hasScheduledInterview, setHasScheduledInterview] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [checkingInterview, setCheckingInterview] = useState(false);
 
   const isMyProfile = !id || id === auth.currentUser?.uid;
+
+  // Ã‰coute des notifications non lues pour le badge
+  useEffect(() => {
+    if (!isMyProfile) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    const q = query(collection(db, 'notifications'), where('userId', '==', user.uid));
+    return onSnapshot(q, (snap) => {
+      setUnreadNotifs(snap.docs.filter(d => !d.data().read).length);
+    });
+  }, [isMyProfile]);
 
   // Calcul dynamique des stats du graphique à partir des candidatures réelles
   const computeChartData = () => {
@@ -205,6 +217,8 @@ export function Profile() {
         birthDate: candidate.birthDate || "",
         username: candidate.username || "",
         portfolioUrls: candidate.portfolioUrls || [],
+        expectedSalary: candidate.expectedSalary || "",
+        maritalStatus: candidate.maritalStatus || "",
       });
       setIsEditing(false);
       toast.success(t('notifications.success_profile_saved'));
@@ -433,6 +447,32 @@ export function Profile() {
 
             {/* Quick actions + CV Generator */}
             <div className="flex gap-3 shrink-0 items-center">
+              {/* Messagerie */}
+              {isMyProfile && (
+                <button
+                  onClick={() => navigate('/messages')}
+                  className="p-2.5 bg-white/10 dark:bg-gray-800/30 text-white hover:bg-white/20 border border-white/10 dark:border-gray-700 rounded-xl transition-all relative"
+                  title="Messages"
+                >
+                  <MessageCircle size={18} />
+                </button>
+              )}
+              {/* Notifications */}
+              {isMyProfile && (
+                <button
+                  onClick={() => navigate('/notifications')}
+                  className="p-2.5 bg-white/10 dark:bg-gray-800/30 text-white hover:bg-white/20 border border-white/10 dark:border-gray-700 rounded-xl transition-all relative"
+                  title="Notifications"
+                >
+                  <Bell size={18} />
+                  {unreadNotifs > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                      {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                    </span>
+                  )}
+                </button>
+              )}
+
               {isCandidateUser && isMyProfile && (
                 <CvGeneratorButton profile={candidate} />
               )}

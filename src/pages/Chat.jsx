@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc, setDoc, arrayUnion } from 'firebase/firestore';
 import { ArrowLeft, Send, Briefcase, Building2, ShieldCheck, UserCheck, FileText, Calendar, Phone, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -39,14 +39,31 @@ export function Chat() {
     const user = auth.currentUser;
     if (!user) { navigate('/'); return; }
 
-    // Déterminer l'autre participant à partir du chatId (uid1_uid2)
+    // Déterminer les participants à partir du chatId (uid1_uid2 ou uid1_uid2_appId)
     const parts = chatId.split('_');
     if (parts.length >= 2) {
       const otherId = user.uid === parts[0] ? parts[1] : parts[0];
       getDoc(doc(db, "users", otherId)).then(snap => {
         if (snap.exists()) setCandidateProfile(snap.data());
       });
-      setChatInfo({ recruiterId: parts[0], candidateId: parts[1] });
+      // Lire les rôles des deux premiers UIDs pour déterminer qui est recruteur/candidat
+      Promise.all([
+        getDoc(doc(db, 'users', parts[0])),
+        getDoc(doc(db, 'users', parts[1]))
+      ]).then(([snap0, snap1]) => {
+        const role0 = snap0.exists() ? snap0.data().role : '';
+        const role1 = snap1.exists() ? snap1.data().role : '';
+        const is0Recruiter = role0 === 'recruiter' || role0 === 'recruteur';
+        const is1Recruiter = role1 === 'recruiter' || role1 === 'recruteur';
+        if (is0Recruiter) {
+          setChatInfo({ recruiterId: parts[0], candidateId: parts[1] });
+        } else if (is1Recruiter) {
+          setChatInfo({ recruiterId: parts[1], candidateId: parts[0] });
+        } else {
+          // Fallback : ordre d'origine
+          setChatInfo({ recruiterId: parts[0], candidateId: parts[1] });
+        }
+      });
     }
 
     const q = query(collection(db, "messages"), where("chatId", "==", chatId), orderBy("timestamp", "asc"));
@@ -73,6 +90,19 @@ export function Chat() {
       await addDoc(collection(db, "messages"), {
         chatId, senderId: currentUser.uid, text, timestamp: serverTimestamp()
       });
+      // Upsert la conversation parente
+      if (chatInfo) {
+        const participants = [chatInfo.recruiterId, chatInfo.candidateId].sort();
+        const convId = participants.join('_');
+        const senderName = currentUser.displayName || 'Utilisateur';
+        await setDoc(doc(db, 'conversations', convId), {
+          participants,
+          lastMessage: text.length > 80 ? text.slice(0, 77) + '...' : text,
+          lastSenderId: currentUser.uid,
+          lastSenderName: senderName,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
     } catch (err) {
       console.error('[Chat] Erreur envoi :', err);
       toast.error(`Erreur d'envoi : ${err.message}`);

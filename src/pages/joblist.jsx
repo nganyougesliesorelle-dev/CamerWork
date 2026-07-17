@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import {
   Search, MapPin, Briefcase, Building2, Clock, User, ChevronDown, PlusCircle,
-  Sparkles, SlidersHorizontal, X, ArrowUpDown,
+  Sparkles, MessageCircle, SlidersHorizontal, X, ArrowUpDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
@@ -76,6 +76,11 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
             <span className="bg-sky-50 dark:bg-gray-700 text-sky-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full uppercase">
               {job.type || 'CDI'}
             </span>
+            {job.premium && (
+              <span className="bg-gradient-to-r from-amber-400 to-orange-400 text-white text-xs font-black px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-sm">
+                â­ Premium
+              </span>
+            )}
           </div>
         </div>
 
@@ -164,7 +169,11 @@ export function JobList() {
       (snapshot) => {
         const jobsData = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter(job => job.status !== 'pending_moderation' && job.status !== 'draft');
+          .filter(job => job.status !== 'pending_moderation' && job.status !== 'draft')
+          .sort((a, b) => {
+            if (a.premium !== b.premium) return a.premium ? -1 : 1;
+            return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+          });
         setJobs(jobsData);
         setLoading(false);
       },
@@ -526,6 +535,7 @@ export function JobList() {
             <Briefcase size={24} />
             <span className="text-[10px] font-black uppercase">{t('jobList.nav_offers')}</span>
           </button>
+
 
           {userRole === 'recruiter' ? (
             <>

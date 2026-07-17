@@ -117,7 +117,7 @@ const STEPS = [
         skills: formData.skills,
         missions: cleanMissions,
         profile: cleanProfile,
-        recruiterId: user.uid,
+        recruiterId: user.uid, premium: false,
         updatedAt: serverTimestamp(),
       };
 
