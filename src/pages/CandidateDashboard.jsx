@@ -92,7 +92,7 @@ export function CandidateDashboard() {
     addDoc(collection(db, 'notifications'), {
       userId: user.uid,
       title: '📊 Coaching Carrière',
-      message: uniqueMissing.length + ' compétences sont très demandées sur le marché : ' + topSkills + '. Consulte ton plan d'action pour booster ton profil !',
+      message: uniqueMissing.length + ' compétences sont très demandées sur le marché : ' + topSkills + ". Consulte ton plan d'action pour booster ton profil !",
       type: 'coaching',
       read: false,
       createdAt: serverTimestamp(),
