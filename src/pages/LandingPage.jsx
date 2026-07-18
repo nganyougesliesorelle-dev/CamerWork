@@ -7,6 +7,7 @@ import { requestNotificationPermission } from '../firebase/notificationService';
 import { auth } from '../firebase/firebaseConfig';
 import { toast } from 'sonner';
 import { useLang } from '../composants/LangContext';
+import { LanguageSwitcher } from '../composants/boutons';
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -57,9 +58,8 @@ export function LandingPage() {
 
           {/* Langue + Connexion à droite */}
           <div className="flex items-center gap-3">
-            <button onClick={toggleDarkMode} className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${darkMode ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`} title={darkMode ? 'Mode clair' : 'Mode nuit'}>
-              {darkMode ? '☀️' : '🌙'}
-            </button>
+            <LanguageSwitcher variant="pill" />
+
             <button 
               onClick={() => navigate('/login')} 
               className="bg-sky-900 hover:bg-sky-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all active:scale-95 hidden sm:block"
@@ -187,8 +187,8 @@ export function LandingPage() {
       </main>
 
       {/* 3. FOOTER */}
-      <footer className="bg-sky-100 border-t border-sky-200/60 py-6 text-center">
-        <span className="font-extrabold text-sky-700 text-sm">UY1 - ICT4D</span>
+      <footer className="bg-sky-900 py-6 text-center">
+        <span className="font-extrabold text-white/50 text-sm tracking-wider">UY1 - ICT4D</span>
       </footer>
 
     </div>

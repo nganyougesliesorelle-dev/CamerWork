@@ -574,7 +574,7 @@ export function SettingsPage() {
             </div>
           </SettingRow>
 
-          {/* 4. Apparence (dark mode + langue) */}
+          {/* 4. Apparence (langue) */}
           <SettingRow
             icon={Eye}
             title={t('settings.appearance')}

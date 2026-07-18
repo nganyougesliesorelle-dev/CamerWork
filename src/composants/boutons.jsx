@@ -29,13 +29,13 @@ export function LanguageSwitcher({ className = '', variant = 'pill' }) {
           onClick={() => switchTo('fr')}
           className={`${baseBtn} ${currentLang === 'fr' ? 'bg-cyan-500 text-white' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}
         >
-          🇫🇷 Français FR
+          FR
         </button>
         <button
           onClick={() => switchTo('en')}
           className={`${baseBtn} ${currentLang === 'en' ? 'bg-cyan-500 text-white' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}
         >
-          🇬🇧 English EN
+          EN
         </button>
       </div>
     );
@@ -48,13 +48,13 @@ export function LanguageSwitcher({ className = '', variant = 'pill' }) {
         onClick={() => switchTo('fr')}
         className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${currentLang === 'fr' ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`}
       >
-        🇫🇷
+        FR
       </button>
       <button
         onClick={() => switchTo('en')}
         className={`text-xs font-bold px-2 py-1 rounded-lg transition-all ${currentLang === 'en' ? 'bg-sky-100 text-sky-700' : 'text-sky-400 hover:text-sky-600'}`}
       >
-        🇬🇧
+        EN
       </button>
     </div>
   );

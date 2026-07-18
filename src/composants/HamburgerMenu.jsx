@@ -33,12 +33,7 @@ export function HamburgerMenu({ className = '' }) {
       onClick: () => { setOpen(false); navigate('/parametres'); },
       color: 'text-sky-600 dark:text-sky-400',
     },
-    {
-      label: darkMode ? 'Mode clair' : 'Mode sombre',
-      icon: darkMode ? Sun : Moon,
-      onClick: () => toggleDarkMode(),
-      color: 'text-amber-500',
-    },
+
     { divider: true },
     {
       label: 'Aide / FAQ',

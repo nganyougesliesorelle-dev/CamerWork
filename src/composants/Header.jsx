@@ -19,13 +19,7 @@ export function Header({ onNavigate }) {
         <button onClick={() => onNavigate('profile')} className="hover:text-teal-500 dark:text-gray-300 dark:hover:text-teal-400 transition-colors">
           {t('header.profile')}
         </button>
-        <button
-          onClick={toggleDarkMode}
-          className="p-2 text-sky-400 dark:text-yellow-400 hover:text-teal-500 hover:bg-sky-50 dark:hover:bg-gray-800 rounded-xl transition-all"
-          title={darkMode ? 'Mode clair' : 'Mode nuit'}
-        >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+
         <button
           onClick={() => onNavigate('settings')}
           className="p-2 text-sky-400 dark:text-gray-400 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-sky-50 dark:hover:bg-gray-800 rounded-xl transition-all"

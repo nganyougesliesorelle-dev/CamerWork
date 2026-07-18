@@ -7,6 +7,7 @@ import { requestNotificationPermission } from '../firebase/notificationService';
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader } from 'lucide-react';
+import { LanguageSwitcher } from '../composants/boutons';
 
 const Home = () => {
   const { t } = useTranslation();
@@ -389,12 +390,18 @@ const Home = () => {
       </div>
 
       {/* BOUTON RETOUR ABSOLU */}
-      <button 
-        onClick={() => navigate('/')} 
-        className="absolute top-6 left-6 z-10 flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
-      >
-        <ArrowLeft size={16} /> {t('auth.retour')}
-      </button>
+      <div className="absolute top-6 left-6 z-10 flex gap-4">
+        <button 
+          onClick={() => navigate('/')} 
+          className="flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-white transition-colors uppercase tracking-wider"
+        >
+          <ArrowLeft size={16} /> {t('auth.retour')}
+        </button>
+      </div>
+
+      <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
+        <LanguageSwitcher variant="pill" />
+      </div>
 
       <div className="w-full max-w-md mx-auto space-y-6 pt-8 relative z-10">
         
