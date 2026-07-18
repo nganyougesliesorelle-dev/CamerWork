@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { registerUser, loginWithMfa, resetPassword } from '../firebase/authService';
+import { registerUser, loginWithMfa, resetPassword, signInWithGoogle } from '../firebase/authService';
 import { auth } from '../firebase/firebaseConfig';
 import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
@@ -106,6 +106,29 @@ const Home = () => {
     return freeDomains.includes(domain);
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if (result.success) {
+        toast.success(t('notifications.success_login', 'Connexion réussie !'));
+        requestNotificationPermission(auth.currentUser.uid);
+        if (result.role === 'recruiter') {
+          navigate('/DashboardRecruiter');
+        } else {
+          navigate('/offres');
+        }
+      } else {
+        toast.error(result.error || 'Erreur lors de la connexion avec Google');
+      }
+    } catch (err) {
+      console.error("Erreur complète Google :", err);
+      toast.error('Un problème technique est survenu avec Google Sign-In.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -124,9 +147,13 @@ const Home = () => {
 
     // Validation téléphone camerounais
     if (!isLoginMode && role === 'candidate' && phone.trim()) {
-      const clean = phone.trim().replace(/\s/g, '').replace(/^\+237/, '');
-      if (!/^6\d{8}$/.test(clean)) {
-        toast.error('Numéro de téléphone invalide. Format attendu : 6XX XXX XXX (9 chiffres, commence par 6).');
+      let clean = phone.trim().replace(/[\s-]/g, '');
+      if (clean.startsWith('+237')) clean = clean.slice(4);
+      else if (clean.startsWith('00237')) clean = clean.slice(5);
+      else if (clean.length === 12 && clean.startsWith('237')) clean = clean.slice(3);
+
+      if (!/^[26]\d{8}$/.test(clean)) {
+        toast.error('Numéro de téléphone invalide. Format attendu : 9 chiffres, commençant par 6 (mobile) ou 2 (fixe).');
         return;
       }
     }
@@ -137,15 +164,27 @@ const Home = () => {
       return;
     }
 
-    // Validation âge minimum 18 ans
-    if (!isLoginMode && birthDate) {
+    // Validation date de naissance
+    if (!isLoginMode && role === 'candidate' && birthDate) {
       const birth = new Date(birthDate);
       const today = new Date();
+      
+      if (birth > today) {
+        toast.error('La date de naissance ne peut pas être dans le futur.');
+        return;
+      }
+
       let age = today.getFullYear() - birth.getFullYear();
       const m = today.getMonth() - birth.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      
       if (age < 18) {
         toast.error('Vous devez avoir au moins 18 ans pour créer un compte.');
+        return;
+      }
+      
+      if (age > 100) {
+        toast.error('La date de naissance est invalide (âge supérieur à 100 ans).');
         return;
       }
     }
@@ -481,6 +520,28 @@ const Home = () => {
             {loading ? t('auth.chargement') : (isLoginMode ? t('auth.login') : t('auth.commencer'))}
           </button>
         </form>
+
+        {/* SEPARATEUR ET BOUTON GOOGLE */}
+        <div className="flex items-center my-4">
+          <div className="flex-1 border-t border-white/10"></div>
+          <span className="px-3 text-xs text-sky-400 font-medium uppercase tracking-wider">{t('auth.ou', 'ou')}</span>
+          <div className="flex-1 border-t border-white/10"></div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-[0.98] text-sm disabled:opacity-50"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Continuer avec Google
+        </button>
 
         {/* LIEN DE COMMUTATION INTERACTION INTERNE */}
         <div className="text-center pt-2">
