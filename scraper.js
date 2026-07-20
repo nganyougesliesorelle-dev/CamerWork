@@ -8,6 +8,8 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import fs from 'fs';
+import path from 'path';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs, query, where, limit } from 'firebase/firestore';
 
@@ -33,6 +35,31 @@ const http = axios.create({
   },
   timeout: 30000,
 });
+
+// Ensure tmp dir exists for saved HTML samples
+const TMP_DIR = path.resolve(process.cwd(), 'tmp_scrape');
+try { fs.mkdirSync(TMP_DIR, { recursive: true }); } catch (e) { /* ignore */ }
+
+async function fetchPage(url, tag = 'page') {
+  try {
+    const res = await http.get(url);
+    const data = res.data || '';
+    try { fs.writeFileSync(path.join(TMP_DIR, `${tag}.html`), data, 'utf8'); } catch (e) { /* ignore write errors */ }
+    if (res.status && res.status !== 200) {
+      console.warn(`fetchPage ${tag}: status ${res.status} for ${url}`);
+    }
+    return data;
+  } catch (err) {
+    const msg = err?.message || String(err);
+    console.error(`fetchPage error [${tag}] ${url}: ${msg}`);
+    // try to record response body when available (useful for Cloudflare/blocked responses)
+    try {
+      const body = err.response?.data || '';
+      if (body) fs.writeFileSync(path.join(TMP_DIR, `${tag}_error.html`), body, 'utf8');
+    } catch (e) { /* ignore */ }
+    return '';
+  }
+}
 
 // ─── Utilitaires ────────────────────────────────────────────
 function cleanText(str) {
@@ -89,7 +116,7 @@ async function saveJob(jobData) {
 async function scrapeMinaJobs() {
   console.log('\n📡 [1/9] MinaJobs Cameroun...');
   const url = 'https://cameroun.minajobs.net/';
-  const { data } = await http.get(url);
+  const data = await fetchPage(url, 'minajobs');
   const $ = cheerio.load(data);
   const jobs = [];
 
@@ -124,7 +151,7 @@ async function scrapeMinaJobs() {
 async function scrapeEverJobs() {
   console.log('📡 [2/9] EverJobs Cameroun...');
   const url = 'https://www.everjobs.cm/emploi';
-  const { data } = await http.get(url);
+  const data = await fetchPage(url, 'everjobs');
   const $ = cheerio.load(data);
   const jobs = [];
 
@@ -159,7 +186,7 @@ async function scrapeEverJobs() {
 async function scrapeEmploiCm() {
   console.log('📡 [3/9] Emploi.cm...');
   const url = 'https://www.emploi.cm/offres-emploi-cameroun';
-  const { data } = await http.get(url);
+  const data = await fetchPage(url, 'emploicm');
   const $ = cheerio.load(data);
   const jobs = [];
 
@@ -194,7 +221,7 @@ async function scrapeEmploiCm() {
 async function scrapeAkwaJobs() {
   console.log('📡 [4/9] AkwaJobs...');
   const url = 'https://akwajobs.com/';
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
+  const data = await fetchPage(url, 'akwajobs');
   if (!data) { console.log('   ⚠️ Site inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];
@@ -229,7 +256,7 @@ async function scrapeAkwaJobs() {
 async function scrapeNkulunu() {
   console.log('📡 [5/9] Nkulunu...');
   const url = 'https://nkulunu.com/emplois';
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
+  const data = await fetchPage(url, 'nkulunu');
   if (!data) { console.log('   ⚠️ Site inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];
@@ -264,7 +291,7 @@ async function scrapeNkulunu() {
 async function scrapeCamerSpace() {
   console.log('📡 [6/9] CamerSpace...');
   const url = 'https://camerspace.com/emplois';
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
+  const data = await fetchPage(url, 'camerspace');
   if (!data) { console.log('   ⚠️ Site inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];
@@ -299,8 +326,8 @@ async function scrapeCamerSpace() {
 async function scrapeJumiaJobs() {
   console.log('📡 [7/9] Jumia Jobs Cameroun...');
   const url = 'https://www.jumia.cm/emplois/';
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
-  if (!data) { console.log('   ⚠️ Site inaccessible, ignoré.'); return []; }
+  const data = await fetchPage(url, 'jumia');
+  if (!data) { console.log('   ⚠️ Jumia inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];
 
@@ -336,7 +363,7 @@ async function scrapeLinkedIn() {
   // LinkedIn bloque le scraping direct ; on utilise Google comme proxy
   const query = encodeURIComponent('site:cm.linkedin.com/jobs emploi Cameroun');
   const url = `https://www.google.com/search?q=${query}&num=20`;
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
+  const data = await fetchPage(url, 'linkedin_google');
   if (!data) { console.log('   ⚠️ LinkedIn indirect inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];
@@ -371,7 +398,7 @@ async function scrapeLinkedIn() {
 async function scrapeIndeed() {
   console.log('📡 [9/9] Indeed Cameroun...');
   const url = 'https://cm.indeed.com/jobs?q=&l=Cameroun';
-  const { data } = await http.get(url).catch(() => ({ data: '' }));
+  const data = await fetchPage(url, 'indeed');
   if (!data) { console.log('   ⚠️ Indeed inaccessible, ignoré.'); return []; }
   const $ = cheerio.load(data);
   const jobs = [];

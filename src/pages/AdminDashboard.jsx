@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
 import { doc, getDoc, updateDoc, addDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, orderBy, startAfter, limit } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
@@ -123,6 +123,17 @@ const AdminDashboard = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const handleAdminSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast.success('Déconnecté.');
+      navigate('/login');
+    } catch (err) {
+      console.error('signOut error', err);
+      toast.error('Erreur lors de la déconnexion.');
+    }
+  };
 
   const fetchRecruiters = async (reset = true) => {
     if (reset) setLoading(true);
@@ -548,13 +559,22 @@ const AdminDashboard = () => {
                   <p className="text-sky-300 text-xs font-medium mt-0.5">Validation des recruteurs</p>
                 </div>
               </div>
-              <button
-                onClick={fetchRecruiters}
-                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
-                title="Rafraîchir"
-              >
-                <RefreshCw size={17} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchRecruiters}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                  title="Rafraîchir"
+                >
+                  <RefreshCw size={17} />
+                </button>
+                <button
+                  onClick={handleAdminSignOut}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                  title="Déconnexion"
+                >
+                  <XCircle size={17} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
