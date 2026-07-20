@@ -28,7 +28,7 @@ import {
   TotpMultiFactorGenerator,
   PhoneMultiFactorGenerator,
 } from 'firebase/auth';
-import { auth } from './firebaseConfig';
+import { auth } from './firebaseConfig.js';
 
 /**
  * Vérifie si une erreur Firebase est liée au MFA.

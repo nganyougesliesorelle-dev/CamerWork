@@ -1,20 +1,24 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
 import { getMessaging, isSupported } from "firebase/messaging"; // Import de isSupported pour sécuriser le build
 
+const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : process.env;
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: env?.VITE_FIREBASE_API_KEY || '',
+  authDomain: env?.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: env?.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: env?.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: env?.VITE_FIREBASE_APP_ID || '',
 };
 
+const hasRequiredConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+
 // Garde-fou : alerter en dev si une variable critique est absente
-if (import.meta.env.DEV) {
+if (env?.DEV) {
   const missing = [];
   if (!firebaseConfig.apiKey) missing.push('VITE_FIREBASE_API_KEY');
   if (!firebaseConfig.projectId) missing.push('VITE_FIREBASE_PROJECT_ID');
@@ -27,29 +31,39 @@ if (import.meta.env.DEV) {
   }
 }
 
-const app = initializeApp(firebaseConfig);
-
-export const auth = getAuth(app);
-
-// Persistance IndexedDB activée dès la création de l'instance Firestore
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
-});
-
-export const storage = getStorage(app); 
-
-// Initialisation sécurisée de Messaging pour éviter les plantages au Build
+let app = null;
+let auth = null;
+let db = null;
+let storage = null;
 let messagingInstance = null;
 
-// On vérifie si l'environnement (le navigateur) supporte Firebase Messaging avant d'appeler getMessaging
-isSupported().then((supported) => {
-  if (supported) {
-    messagingInstance = getMessaging(app);
-  } else {
-    console.warn("[Firebase] Les notifications push ne sont pas supportées sur ce navigateur.");
-  }
-}).catch((err) => {
-  console.error("[Firebase] Erreur lors de la vérification du support de Messaging :", err);
-});
+if (hasRequiredConfig) {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  setPersistence(auth, browserLocalPersistence)
+    .catch((err) => {
+      console.warn('[Firebase] Impossible d’activer la persistance de session :', err);
+    });
 
-export const messaging = messagingInstance;
+  // Persistance IndexedDB activée dès la création de l'instance Firestore
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  });
+
+  storage = getStorage(app);
+
+  // Initialisation sécurisée de Messaging pour éviter les plantages au Build
+  isSupported().then((supported) => {
+    if (supported) {
+      messagingInstance = getMessaging(app);
+    } else {
+      console.warn("[Firebase] Les notifications push ne sont pas supportées sur ce navigateur.");
+    }
+  }).catch((err) => {
+    console.error("[Firebase] Erreur lors de la vérification du support de Messaging :", err);
+  });
+} else {
+  console.warn('[Firebase] Configuration Firebase absente ; les services d’authentification et de stockage seront indisponibles dans cette exécution.');
+}
+
+export { auth, db, storage, messagingInstance as messaging };

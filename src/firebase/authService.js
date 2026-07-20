@@ -1,4 +1,12 @@
-import { auth, db, storage } from "./firebaseConfig"; // Ajout de storage
+let auth = null;
+let db = null;
+let storage = null;
+
+try {
+  ({ auth, db, storage } = await import('./firebaseConfig.js'));
+} catch (_error) {
+  // The pure helper used in tests does not require Firebase runtime.
+}
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -12,7 +20,42 @@ import {
   doc, setDoc, getDoc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, getDocs, query, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { initiateLogin, completeMfaChallenge, isMfaError } from './mfaService';
+let initiateLogin = async () => ({ success: false, error: 'Firebase runtime unavailable' });
+let completeMfaChallenge = async () => ({ success: false, error: 'Firebase runtime unavailable' });
+let isMfaError = () => false;
+
+try {
+  ({ initiateLogin, completeMfaChallenge, isMfaError } = await import('./mfaService.js'));
+} catch (_error) {
+  // The pure helper used in tests does not require Firebase runtime.
+}
+
+export const buildApplicationPayload = ({ job, user, userData, message = '', cvUrl = '', cvName = '', cvLabel = '', cvId = '' }) => ({
+  jobId: job?.id,
+  jobTitle: job?.title,
+  company: job?.company,
+  recruiterId: job?.recruiterId || null,
+  candidateId: user?.uid,
+  candidateName: userData?.displayName || userData?.name || user?.displayName || "Candidat",
+  candidateEmail: user?.email,
+  status: 'pending',
+  message: message?.trim() || '',
+  cvUrl,
+  cvName,
+  cvLabel,
+  cvId,
+  appliedAt: serverTimestamp(),
+});
+
+export const mergeCvLibraryEntries = (existingLibrary = [], newEntry) => {
+  if (!newEntry) return Array.isArray(existingLibrary) ? existingLibrary : [];
+  const normalizedExisting = Array.isArray(existingLibrary) ? existingLibrary.filter(Boolean) : [];
+  const alreadyExists = normalizedExisting.some((entry) => entry?.id === newEntry.id || entry?.url === newEntry.url);
+  if (alreadyExists) {
+    return normalizedExisting;
+  }
+  return [...normalizedExisting, newEntry];
+};
 
 // Domaines gratuits — tout autre domaine est considéré professionnel
 const FREE_DOMAINS = new Set([
@@ -53,6 +96,8 @@ export const registerUser = async (email, password, role, fullName, additionalFi
       email: email,
       role: role, 
       emailVerified: false, // Initialisé à faux tant qu'il n'a pas cliqué sur le lien
+      onboardingCompleted: false,
+      setupPending: true,
       createdAt: serverTimestamp(),
       
       // Extraction sécurisée des nouveaux paramètres optionnels du profil
@@ -103,9 +148,14 @@ export const loginUser = async (email, password) => {
     const userDoc = await getDoc(doc(db, "users", user.uid));
     
     if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const shouldMarkSetupPending = userData.onboardingCompleted === false && userData.setupPending !== true;
       // Mettre à jour le statut dans la base de données
-      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
-      return { success: true, user, role: userDoc.data().role };
+      await updateDoc(doc(db, "users", user.uid), {
+        emailVerified: true,
+        setupPending: shouldMarkSetupPending ? true : (userData.setupPending ?? (userData.onboardingCompleted === false)),
+      });
+      return { success: true, user, role: userData.role };
     }
     return { success: false, error: "Profil utilisateur inexistant dans la base." };
   } catch (error) {
@@ -137,8 +187,13 @@ export const loginWithMfa = async (email, password, mfaCode, mfaResolver) => {
     }
     const userDoc = await getDoc(doc(db, "users", user.uid));
     if (userDoc.exists()) {
-      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
-      return { success: true, user, role: userDoc.data().role };
+      const userData = userDoc.data();
+      const shouldMarkSetupPending = userData.onboardingCompleted === false && userData.setupPending !== true;
+      await updateDoc(doc(db, "users", user.uid), {
+        emailVerified: true,
+        setupPending: shouldMarkSetupPending ? true : (userData.setupPending ?? (userData.onboardingCompleted === false)),
+      });
+      return { success: true, user, role: userData.role };
     }
     return { success: false, error: "Profil utilisateur inexistant dans la base." };
   }
@@ -151,8 +206,13 @@ export const loginWithMfa = async (email, password, mfaCode, mfaResolver) => {
     }
     const userDoc = await getDoc(doc(db, "users", user.uid));
     if (userDoc.exists()) {
-      await updateDoc(doc(db, "users", user.uid), { emailVerified: true });
-      return { success: true, user, role: userDoc.data().role };
+      const userData = userDoc.data();
+      const shouldMarkSetupPending = userData.onboardingCompleted === false && userData.setupPending !== true;
+      await updateDoc(doc(db, "users", user.uid), {
+        emailVerified: true,
+        setupPending: shouldMarkSetupPending ? true : (userData.setupPending ?? (userData.onboardingCompleted === false)),
+      });
+      return { success: true, user, role: userData.role };
     }
     return { success: false, error: "Profil utilisateur inexistant dans la base." };
   }
@@ -183,23 +243,10 @@ export const resetPassword = async (email) => {
 /**
  * 4. POSTULER
  */
-export const applyToJob = async (job, user) => {
+export const applyToJob = async ({ job, user, userData, message = '', cvUrl = '', cvName = '', cvLabel = '', cvId = '' }) => {
   try {
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    const userData = userDoc.exists() ? userDoc.data() : {};
-
-    await addDoc(collection(db, "applications"), {
-      jobId: job.id,
-      jobTitle: job.title,
-      company: job.company,
-      recruiterId: job.recruiterId || null,
-      candidateId: user.uid,
-      candidateName: userData.displayName || userData.name || user.displayName || "Candidat",
-      candidateEmail: user.email,
-      status: "pending",
-      appliedAt: serverTimestamp(),
-    });
-
+    const payload = buildApplicationPayload({ job, user, userData, message, cvUrl, cvName, cvLabel, cvId });
+    await addDoc(collection(db, "applications"), payload);
     return { success: true };
   } catch (error) {
     console.error("Erreur Application:", error);
@@ -240,6 +287,7 @@ export const updateApplicationStatus = async (applicationId, candidateId, jobTit
     let standardizedStatus = newStatus;
     if (newStatus === "retenu") standardizedStatus = "accepted";
     if (newStatus === "refusé") standardizedStatus = "rejected";
+    console.debug('[updateApplicationStatus] payload:', { applicationId, candidateId, jobTitle, companyName, standardizedStatus, recruiterId });
 
     await updateDoc(doc(db, "applications", applicationId), {
       status: standardizedStatus
@@ -247,60 +295,91 @@ export const updateApplicationStatus = async (applicationId, candidateId, jobTit
 
     let titleNotification = "";
     let messageNotification = "";
+    const warnings = [];
 
     if (standardizedStatus === "accepted") {
       titleNotification = "Candidature retenue ! 🎉";
       messageNotification = `Félicitations ! L'entreprise ${companyName} a retenu ton profil pour le poste de : ${jobTitle}. Un salon de discussion a été ouvert pour votre pré-entretien.`;
 
       const chatId = `${recruiterId}_${candidateId}_${applicationId}`;
-      await setDoc(doc(db, "chats", chatId), {
-        chatId: chatId,
-        recruiterId: recruiterId,
-        candidateId: candidateId,
-        jobTitle: jobTitle,
-        companyName: companyName,
-        createdAt: serverTimestamp(),
-        lastMessage: "Salon de discussion ouvert pour le pré-entretien.",
-        lastMessageAt: serverTimestamp()
-      });
+      try {
+        await setDoc(doc(db, "chats", chatId), {
+          chatId: chatId,
+          recruiterId: recruiterId,
+          candidateId: candidateId,
+          jobTitle: jobTitle,
+          companyName: companyName,
+          createdAt: serverTimestamp(),
+          lastMessage: "Salon de discussion ouvert pour le pré-entretien.",
+          lastMessageAt: serverTimestamp()
+        });
+      } catch (error) {
+        console.warn('[updateApplicationStatus] Chat creation failed:', error);
+        warnings.push("Le chat n'a pas pu être créé.");
+      }
     } else if (standardizedStatus === "rejected") {
       titleNotification = "Mise à jour de candidature";
       messageNotification = `L'entreprise ${companyName} a clôturé l'étude des profils pour le poste de : ${jobTitle}.`;
     }
 
     if (titleNotification) {
-      await addDoc(collection(db, "notifications"), {
-        userId: candidateId,
-        title: titleNotification,
-        message: messageNotification,
-        type: "status_update",
-        read: false,
-        createdAt: serverTimestamp()
-      });
+      try {
+        await addDoc(collection(db, "notifications"), {
+          userId: candidateId,
+          title: titleNotification,
+          message: messageNotification,
+          type: "status_update",
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      } catch (error) {
+        console.warn('[updateApplicationStatus] Notification creation failed:', error);
+        warnings.push("La notification n'a pas pu être envoyée.");
+      }
     }
 
-    return { success: true };
+    return { success: true, warnings: warnings.join(' ') };
   } catch (error) {
-    console.error("Erreur Changement Statut / Chat:", error);
-    return { success: false, error: error.message };
+    console.error("Erreur Changement Statut / Chat:", error.code || error.message || error);
+    return { success: false, error: error.message || String(error), code: error.code || null };
   }
 };
 
 /**
  * 5. GESTION DES CV (Upload vers Storage)
  */
-export const uploadCV = async (file, userId) => {
+export const uploadCV = async (file, userId, options = {}) => {
   try {
     const storageRef = ref(storage, `cvs/${userId}_${Date.now()}`);
     const snapshot = await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(snapshot.ref);
 
+    const label = String(options.label || file.name.replace(/\.[^.]+$/, '') || 'CV').trim();
+    const entryId = `cv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const entry = {
+      id: entryId,
+      url: downloadURL,
+      name: file.name,
+      label,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const userSnap = await getDoc(doc(db, "users", userId));
+    const currentUserData = userSnap.exists() ? userSnap.data() : {};
+    const existingLibrary = Array.isArray(currentUserData.cvLibrary) ? currentUserData.cvLibrary : [];
+    const nextLibrary = mergeCvLibraryEntries(existingLibrary, entry);
+    const primaryCvId = options.makePrimary || !existingLibrary.length ? entryId : currentUserData.primaryCvId || existingLibrary[0]?.id || entryId;
+
     await updateDoc(doc(db, "users", userId), {
       cvUrl: downloadURL,
-      cvName: file.name
+      cvName: file.name,
+      cvLabel: label,
+      cvId: entryId,
+      primaryCvId,
+      cvLibrary: nextLibrary,
     });
 
-    return { success: true, url: downloadURL };
+    return { success: true, url: downloadURL, name: file.name, label, id: entryId, entry, cvLibrary: nextLibrary, primaryCvId };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -462,7 +541,6 @@ export const signInWithGoogle = async () => {
     const userDoc = await getDoc(userDocRef);
 
     if (!userDoc.exists()) {
-      // Premier login Google — créer le document
       const newUserData = {
         uid: user.uid,
         displayName: user.displayName || user.email.split('@')[0],
@@ -470,29 +548,43 @@ export const signInWithGoogle = async () => {
         email: user.email,
         emailVerified: user.emailVerified,
         photoURL: user.photoURL || '',
-        role: 'candidate', // Par défaut, le rôle est candidat
+        avatarSource: user.photoURL ? 'google' : 'none',
+        role: 'candidate',
         provider: 'google',
+        onboardingCompleted: false,
+        setupPending: true,
         createdAt: serverTimestamp(),
         lastLoginAt: serverTimestamp(),
       };
 
       await setDoc(userDocRef, newUserData);
-      return { success: true, user, role: 'candidate', isNew: true };
+      return { success: true, user, role: 'candidate', isNew: true, userData: newUserData };
     }
 
     // Compte existant — mettre à jour la dernière connexion
     const existingData = userDoc.data();
+    const nextAvatarSource = existingData.avatarSource === 'custom' ? 'custom' : 'google';
+    const nextPhotoURL = existingData.avatarSource === 'custom' && existingData.photoURL
+      ? existingData.photoURL
+      : (user.photoURL || existingData.photoURL || '');
+
     await updateDoc(userDocRef, {
       lastLoginAt: serverTimestamp(),
       emailVerified: user.emailVerified,
-      photoURL: user.photoURL || existingData.photoURL || '',
+      photoURL: nextPhotoURL,
+      avatarSource: nextAvatarSource,
+      displayName: existingData.displayName || user.displayName || user.email.split('@')[0],
+      name: existingData.name || user.displayName || user.email.split('@')[0],
+      setupPending: existingData.setupPending ?? (existingData.onboardingCompleted === false),
     });
 
     return { 
       success: true, 
       user, 
-      role: existingData.role || 'candidate', 
-      isNew: false 
+      role: existingData.role || 'candidate',
+      isNew: false,
+      userData: existingData,
+      needsProfileSetup: existingData.onboardingCompleted === false
     };
   } catch (error) {
     console.error("Erreur Google Sign-In:", error);

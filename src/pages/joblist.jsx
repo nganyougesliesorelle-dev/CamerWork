@@ -6,6 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import useUnreadMessages from '../hooks/useUnreadMessages';
 import { toast } from 'sonner';
 import { calculateMatchingScore } from '../firebase/matchingEngine';
 import { useTranslation } from 'react-i18next';
@@ -18,11 +19,11 @@ import { HamburgerMenu } from '../composants/HamburgerMenu';
 
 // â”€â”€ Constantes de filtres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CONTRACT_TYPES = ['Tous', 'CDI', 'CDD', 'Stage', 'Freelance', 'Temps partiel'];
-const WORK_MODES = ['Tous', 'PrÃ©sentiel', 'Hybride', 'Remote'];
-const EXPERIENCE_LEVELS = ['Tous', 'Junior', 'IntermÃ©diaire', 'Senior', 'Lead', 'Direction'];
+const WORK_MODES = ['Tous', 'Présentiel', 'Hybride', 'Remote'];
+const EXPERIENCE_LEVELS = ['Tous', 'Junior', 'Intermédiaire', 'Senior', 'Lead', 'Direction'];
 const SORT_OPTIONS = [
   { value: 'matching', label: 'Pertinence' },
-  { value: 'recent', label: 'Plus rÃ©cent' },
+  { value: 'recent', label: 'Plus récent' },
   { value: 'salary_asc', label: 'Salaire â†‘' },
   { value: 'salary_desc', label: 'Salaire â†“' },
 ];
@@ -30,7 +31,7 @@ const SORT_OPTIONS = [
 // â”€â”€ Composant Carte d'Offre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
   const formatDate = (timestamp) => {
-    if (!timestamp) return "Ã€ l'instant";
+    if (!timestamp) return "À l'instant";
     try {
       const date = timestamp.toDate();
       const diff = new Date() - date;
@@ -38,7 +39,7 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
       if (days === 0) return "Aujourd'hui";
       return `Il y a ${days} j`;
     } catch (_e) {
-      return 'RÃ©cemment';
+      return 'Récemment';
     }
   };
 
@@ -53,23 +54,21 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
   return (
     <div
       onClick={onClick}
-      className={`p-6 rounded-2xl shadow-sm border hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between ${
-        darkMode
-          ? 'bg-slate-800 border-slate-700 hover:border-sky-500'
-          : 'bg-white border-sky-100 hover:border-sky-200'
-      }`}
+      className={`p-6 rounded-2xl bg-sky-50 dark:bg-gray-700 border-none hover:bg-sky-100 dark:hover:bg-gray-600 hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between`}
     >
       <div>
-        <div className="flex justify-between items-start mb-4">
-          <div className="bg-sky-50 dark:bg-gray-700 p-3 rounded-xl group-hover:bg-cyan-600 transition-colors">
-            <Building2 className="w-6 h-6 text-cyan-600 group-hover:text-white" />
+        <div className="flex justify-between items-start mb-4 gap-3">
+          <div className="shrink-0 h-14 w-14 rounded-2xl overflow-hidden border border-sky-100 bg-sky-50 flex items-center justify-center">
+            {job.companyLogoUrl ? (
+              <img src={job.companyLogoUrl} alt={job.company || 'Entreprise'} className="h-full w-full object-cover" />
+            ) : (
+              <Building2 className="w-6 h-6 text-cyan-600" />
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {userRole === 'candidate' && score > 0 && (
-              <span
-                className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase flex items-center gap-1 ${getScoreBadgeStyle(score)}`}
-              >
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase flex items-center gap-1 ${getScoreBadgeStyle(score)}`}>
                 <Sparkles size={10} /> {score}% Match
               </span>
             )}
@@ -78,7 +77,7 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
             </span>
             {job.premium && (
               <span className="bg-gradient-to-r from-amber-400 to-orange-400 text-white text-xs font-black px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-sm">
-                â­ Premium
+                ★ Premium
               </span>
             )}
           </div>
@@ -90,16 +89,14 @@ const JobCard = ({ job, score, userRole, onClick, darkMode }) => {
         <p className="text-sky-500 dark:text-gray-400 text-sm mb-4 font-medium">{job.company}</p>
       </div>
 
-      <div
-        className={`flex items-center gap-4 text-xs border-t pt-4 mt-4 ${
-          darkMode ? 'text-slate-400 border-slate-700' : 'text-sky-400'
-        }`}
-      >
+      <div className={`flex items-center gap-4 text-xs border-t pt-4 mt-4 ${
+        darkMode ? 'text-slate-400 border-slate-700' : 'text-sky-400'
+      }`}>
         <div className="flex items-center gap-1 font-semibold text-sky-500 dark:text-gray-300">
           <MapPin className="w-3 h-3 text-sky-500 dark:text-gray-400" />
           {job.city}
         </div>
-        {job.workMode && job.workMode !== 'PrÃ©sentiel' && (
+        {job.workMode && job.workMode !== 'Présentiel' && (
           <span className="bg-accent-400/10 text-accent-600 dark:text-accent-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
             {job.workMode}
           </span>
@@ -124,8 +121,10 @@ export function JobList() {
   const [locationQuery, setLocationQuery] = useState('');
   const [userRole, setUserRole] = useState(null);
   const [candidateProfile, setCandidateProfile] = useState(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const unreadFromHook = useUnreadMessages();
 
-  // Filtres avancÃ©s
+  // Filtres avancés
   const [showFilters, setShowFilters] = useState(false);
   const [contractType, setContractType] = useState('Tous');
   const [workMode, setWorkMode] = useState('Tous');
@@ -135,12 +134,12 @@ export function JobList() {
   const CAMEROON_CITIES = [
     'Toutes les villes',
     'Douala',
-    'YaoundÃ©',
+    'Yaoundé',
     'Garoua',
     'Maroua',
     'Bafoussam',
     'Bamenda',
-    'NgaoundÃ©rÃ©',
+    'Ngaoundéré',
     'Nkongsamba',
     'Kribi',
     'Limbe',
@@ -208,6 +207,11 @@ export function JobList() {
     };
   }, []);
 
+  useEffect(() => {
+    // Sync local state with the shared hook value
+    setUnreadMessagesCount(unreadFromHook || 0);
+  }, [unreadFromHook]);
+
   // â”€â”€ Pipeline de filtrage + scoring + tri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const processedJobs = jobs
     .map((job) => {
@@ -232,7 +236,7 @@ export function JobList() {
         contractType === 'Tous' || type === contractType.toLowerCase();
       const matchesWorkMode =
         workMode === 'Tous' ||
-        (job.workMode || 'PrÃ©sentiel').toLowerCase() === workMode.toLowerCase();
+        (job.workMode || 'Présentiel').toLowerCase() === workMode.toLowerCase();
       const matchesExperience =
         experienceLevel === 'Tous' ||
         (job.experienceLevel || '').toLowerCase() === experienceLevel.toLowerCase();
@@ -253,11 +257,12 @@ export function JobList() {
         case 'salary_desc':
           // Extraction du premier nombre dans le salaire
           const getSalary = (s) => {
+            if (typeof s === 'number' && Number.isFinite(s)) return s;
             const match = s?.match(/(\d+)\s*k/);
             return match ? parseInt(match[1]) * 1000 : 0;
           };
-          const aSal = getSalary(a.salary);
-          const bSal = getSalary(b.salary);
+          const aSal = getSalary(a.salary) || getSalary(a.salaryMin) || getSalary(a.salaryMax);
+          const bSal = getSalary(b.salary) || getSalary(b.salaryMin) || getSalary(b.salaryMax);
           return sortBy === 'salary_asc' ? aSal - bSal : bSal - aSal;
         case 'matching':
         default:
@@ -269,10 +274,10 @@ export function JobList() {
   return (
     <AnimatedPage>
       <div
-          className={`min-h-screen font-sans pb-28 overflow-x-hidden ${
+        className={`min-h-screen font-sans pb-28 overflow-x-hidden ${
           darkMode
             ? 'bg-slate-900 text-slate-200'
-            : 'bg-sky-50 text-sky-800 dark:text-gray-100'
+            : 'bg-gradient-to-br from-sky-600 via-sky-700 to-sky-900 text-white'
         }`}
       >
         {/* Header */}
@@ -298,7 +303,7 @@ export function JobList() {
             </h1>
 
             {/* Barre de recherche */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl dark:shadow-gray-900/30 p-2 md:p-3 mt-6 sm:mt-8 border border-white/20">
+            <div className="bg-transparent sm:bg-transparent rounded-2xl p-2 md:p-3 mt-6 sm:mt-8">
               <div className="flex flex-col md:flex-row gap-2">
                 <div className="flex-[1.5] relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-sky-400 dark:text-gray-400" />
@@ -307,7 +312,7 @@ export function JobList() {
                     placeholder={t('jobList.search_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-4 bg-sky-50 dark:bg-gray-700 border-none rounded-2xl text-sky-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-sky-500 transition-all font-medium"
+                    className="w-full pl-12 pr-4 py-4 bg-white/10 dark:bg-white/10 border-none rounded-2xl text-white dark:text-white outline-none focus:ring-2 focus:ring-sky-300 transition-all font-medium"
                   />
                 </div>
 
@@ -316,7 +321,7 @@ export function JobList() {
                   <select
                     value={locationQuery}
                     onChange={(e) => setLocationQuery(e.target.value)}
-                    className="w-full pl-12 pr-10 py-4 bg-sky-50 dark:bg-gray-700 border-none rounded-2xl text-sky-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-sky-500 transition-all font-medium appearance-none cursor-pointer"
+                    className="w-full pl-12 pr-10 py-4 bg-white/10 dark:bg-gray-700 border-none rounded-2xl text-white dark:text-white outline-none focus:ring-2 focus:ring-sky-300 transition-all font-medium appearance-none cursor-pointer"
                   >
                     {CAMEROON_CITIES.map((city) => (
                       <option key={city} value={city}>
@@ -327,13 +332,13 @@ export function JobList() {
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-400 dark:text-gray-400 pointer-events-none" />
                 </div>
 
-                {/* Bouton filtres avancÃ©s */}
+                {/* Bouton filtres avancés */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className={`relative flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 ${
                     showFilters
                       ? 'bg-brand-600 text-white'
-                      : 'bg-sky-50 dark:bg-gray-700 text-sky-600 dark:text-gray-300 hover:bg-sky-100 dark:hover:bg-gray-600'
+                      : 'bg-white/10 dark:bg-white/10 text-white dark:text-white hover:bg-white/20 dark:hover:bg-white/20'
                   }`}
                 >
                   <SlidersHorizontal size={18} />
@@ -346,7 +351,7 @@ export function JobList() {
                 </button>
               </div>
 
-              {/* Panneau de filtres avancÃ©s */}
+              {/* Panneau de filtres avancés */}
               {showFilters && (
                 <div className="mt-3 pt-3 border-t border-sky-100 dark:border-gray-700 space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -386,7 +391,7 @@ export function JobList() {
                       </select>
                     </div>
 
-                    {/* Niveau d'expÃ©rience */}
+                    {/* Niveau d'expérience */}
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-wider text-sky-400 dark:text-gray-400 mb-2">
                         {t('jobList.experience_filter')}
@@ -459,7 +464,7 @@ export function JobList() {
                         onClick={resetFilters}
                         className="text-[10px] font-bold text-error-500 hover:text-error-600 dark:text-red-400 dark:hover:text-red-300 ml-auto"
                       >
-                        RÃ©initialiser
+                        Réinitialiser
                       </button>
                     </div>
                   )}
@@ -536,6 +541,20 @@ export function JobList() {
             <span className="text-[10px] font-black uppercase">{t('jobList.nav_offers')}</span>
           </button>
 
+          {(userRole === 'candidate' || userRole === 'recruiter') && (
+            <button
+              onClick={() => navigate('/messages')}
+              className="relative flex flex-col items-center gap-1 text-sky-400 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition-all active:scale-90"
+            >
+              <MessageCircle size={24} />
+              <span className="text-[10px] font-black uppercase">{t('jobList.nav_messages') || 'Messages'}</span>
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-2 text-[9px] font-black bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {userRole === 'recruiter' ? (
             <>

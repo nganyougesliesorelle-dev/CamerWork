@@ -1,14 +1,15 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, Users, CheckCircle, XCircle, ExternalLink, PlusCircle, 
-  LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, MessageSquare, 
+  LayoutDashboard, ArrowLeft, Clock, Trash2, Edit3, MessageSquare, MessageCircle,
   LogOut, Search, Filter, Bell, Building, Sparkles, TrendingUp, 
   Calendar, Eye, User, ChevronRight, BarChart3, Activity, CheckCheck, X,
   MapPin, Target
 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase/firebaseConfig';
+import { db, auth, storage } from '../firebase/firebaseConfig';
 import { updateApplicationStatus } from '../firebase/authService';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { calculateMatchingScore, reverseMatchCandidates } from '../firebase/matchingEngine';
 import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
@@ -27,7 +28,7 @@ export function DashboardRecruiter() {
   const [selectedCityFilter, setSelectedCityFilter] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [profileForm, setProfileForm] = useState({ displayName: '', company: '', phone: '', city: 'Yaoundé' });
+  const [profileForm, setProfileForm] = useState({ displayName: '', company: '', phone: '', city: 'Yaoundé', companyLogoUrl: '' });
   // eslint-disable-next-line no-unused-vars
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   // Module 3 — Reverse Matching
@@ -41,11 +42,14 @@ export function DashboardRecruiter() {
 
     getDoc(doc(db, "users", user.uid)).then((userDoc) => {
       if (userDoc.exists()) {
+        const d = userDoc.data();
         setProfileForm({
-          displayName: userDoc.data().displayName || '',
-          company: userDoc.data().company || '',
-          phone: userDoc.data().phone || '',
-          city: userDoc.data().city || 'Yaoundé'
+          displayName: d.displayName || '',
+          company: d.company || '',
+          phone: d.phone || '',
+          city: d.city || 'Yaoundé',
+          companyLogoUrl: d.companyLogoUrl || '',
+          companyLogoName: d.companyLogoName || '',
         });
       }
     });
@@ -123,15 +127,61 @@ export function DashboardRecruiter() {
     }
   };
 
+  const handleCompanyLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Veuillez choisir une image valide pour le logo.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const storageRef = ref(storage, `company-logos/${user.uid}_${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const logoUrl = await getDownloadURL(snapshot.ref);
+
+      await updateDoc(doc(db, 'users', user.uid), {
+        companyLogoUrl: logoUrl,
+        companyLogoName: file.name,
+      });
+
+      const jobsSnap = await getDocs(query(collection(db, 'jobs'), where('recruiterId', '==', user.uid)));
+      const batch = writeBatch(db);
+      jobsSnap.forEach((jobDoc) => {
+        batch.update(doc(db, 'jobs', jobDoc.id), { companyLogoUrl: logoUrl });
+      });
+      await batch.commit();
+
+      toast.success('Logo de l’entreprise mis à jour.');
+    } catch (_error) {
+      toast.error('Impossible d’enregistrer le logo de l’entreprise.');
+    }
+  };
+
   const updateStatus = async (app, newStatus) => {
     if (newStatus === 'retenu' && (app.status === 'retenu' || app.status === 'accepted')) return;
     try {
       const apiStatus = newStatus === 'retenu' ? 'accepted' : 'rejected';
       const result = await updateApplicationStatus(app.id, app.candidateId, app.jobTitle, app.company || "Recruteur CamerWork", apiStatus, auth.currentUser.uid);
-      if (result.success) toast.success(newStatus === 'retenu' ? t('notifications.candidate_accepted') : t('notifications.candidate_rejected'));
-      else toast.error(result.error || t('common.error'));
+      if (result.success) {
+        toast.success(newStatus === 'retenu' ? t('notifications.candidate_accepted') : t('notifications.candidate_rejected'));
+        if (result.warnings) {
+          toast.error(result.warnings, { duration: 6000 });
+        }
+      } else {
+        toast.error(result.error || t('common.error'));
+      }
     } catch (_e) { toast.error(t('jobs.update_error')); }
   };
+
+  const [selectedApp, setSelectedApp] = useState(null);
+
+  const openAppDetails = (app) => setSelectedApp(app);
+  const closeAppDetails = () => setSelectedApp(null);
 
   const getStatusBadge = (status) => {
     if (status === 'retenu' || status === 'accepted') return 'bg-teal-50 text-teal-700 border-teal-200';
@@ -155,6 +205,7 @@ export function DashboardRecruiter() {
   // eslint-disable-next-line no-unused-vars
   const rejectedCount = applications.filter(a => a.status === 'rejected' || a.status === 'refusé').length;
   const pendingCount = applications.filter(a => a.status === 'pending').length;
+  const unreadMessagesCount = notifications.filter(n => n.type === 'message' && !n.read).length;
 
   // Données graphique hebdomadaire
   const chartData = (() => {
@@ -189,14 +240,32 @@ export function DashboardRecruiter() {
               <button onClick={() => navigate('/offres')} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
                 <ArrowLeft size={18} />
               </button>
+              {/* company logo preview */}
+              {profileForm.companyLogoUrl ? (
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-white/10 border border-white/10">
+                  <img src={profileForm.companyLogoUrl} alt="Logo entreprise" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center">
+                  <Building size={20} className="text-white/60" />
+                </div>
+              )}
               <div>
                 <h1 className="text-xl md:text-2xl font-black tracking-tight">Espace Recruteur</h1>
                 <p className="text-sky-300 dark:text-gray-400 text-xs font-medium mt-0.5">{profileForm.company || 'Votre entreprise'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/messages')} className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all" title="Messages">
+              <button onClick={() => navigate('/profil')} className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all" title="Profil">
+                <User size={18} />
+              </button>
+              <button onClick={() => navigate('/messages')} className="relative p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all" title="Messages">
                 <MessageCircle size={18} />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                    {unreadMessagesCount}
+                  </span>
+                )}
               </button>
               <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
                 <Bell size={18} />
@@ -206,6 +275,10 @@ export function DashboardRecruiter() {
                   </span>
                 )}
               </button>
+              <label className="cursor-pointer p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all text-white/70 hover:text-white" title="Ajouter un logo entreprise">
+                <Building size={18} />
+                <input type="file" accept="image/*" onChange={handleCompanyLogoUpload} className="hidden" />
+              </label>
               <button onClick={handleLogout} className="p-3 bg-white/10 hover:bg-red-500/30 rounded-xl transition-all text-white/70 hover:text-white">
                 <LogOut size={18} />
               </button>
@@ -251,7 +324,7 @@ export function DashboardRecruiter() {
         )}
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 space-y-6">
 
         {/* ─── KPIs ─── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -302,6 +375,35 @@ export function DashboardRecruiter() {
                 </div>
               ))}
               {notifications.length === 0 && <p className="text-sky-400 dark:text-gray-400 text-xs text-center py-4">Aucune notification</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── MESSAGERIE RECRUTEUR ─── */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm dark:shadow-gray-900/30 border border-sky-100 dark:border-gray-700 p-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <h2 className="text-sm font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
+              <MessageSquare size={16} className="text-cyan-500" /> {t('recruiterDashboard.direct_messages')}
+            </h2>
+            <button onClick={() => navigate('/messages')} className="inline-flex items-center gap-2 bg-sky-50 dark:bg-gray-700/50 border border-sky-100 dark:border-gray-700 text-sky-700 dark:text-gray-100 text-xs font-bold uppercase tracking-wider py-2 px-3 rounded-xl hover:bg-cyan-500 hover:text-white transition-all">
+              <MessageCircle size={14} /> {t('recruiterDashboard.view_conversations')}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-sky-50 dark:bg-gray-900/80 rounded-2xl p-4 border border-sky-100 dark:border-gray-700">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-500 dark:text-cyan-400">{t('recruiterDashboard.unread_messages')}</p>
+              <p className="text-3xl font-black text-sky-800 dark:text-white mt-3">{unreadMessagesCount}</p>
+              <p className="text-[11px] text-sky-500 dark:text-gray-400 mt-1">{t('recruiterDashboard.unread_messages_help')}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/20">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-500 dark:text-cyan-400">{t('recruiterDashboard.quick_access')}</p>
+              <div className="mt-4 space-y-3">
+                <button onClick={() => navigate('/messages')} className="w-full inline-flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-cyan-500 text-white font-bold text-sm hover:bg-cyan-600 transition-all">
+                  {t('recruiterDashboard.open_messaging')}
+                  {unreadMessagesCount > 0 && <span className="min-w-[1.5rem] h-6 rounded-full bg-white text-cyan-600 text-[10px] font-black flex items-center justify-center">{unreadMessagesCount}</span>}
+                </button>
+                <p className="text-[11px] text-sky-500 dark:text-gray-400">{t('recruiterDashboard.recruiter_messages_help')}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -415,6 +517,9 @@ export function DashboardRecruiter() {
                             <button onClick={() => navigate(`/profil/${app.candidateId}`)} className="p-2 text-sky-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all" title="Voir profil">
                               <Eye size={15} />
                             </button>
+                            <button onClick={() => openAppDetails(app)} className="p-2 text-sky-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all" title="Voir candidature">
+                              <ExternalLink size={15} />
+                            </button>
                             {isAccepted && (
                               <button onClick={() => navigate(`/chat/${chatId}`)} className="p-2 text-teal-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-all" title="Message">
                                 <MessageSquare size={15} />
@@ -442,6 +547,45 @@ export function DashboardRecruiter() {
         </div>
 
       </div>
+
+      {/* Application details modal */}
+      {selectedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAppDetails} />
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl dark:shadow-gray-900/40 p-6 z-10 max-w-2xl w-full mx-4">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-black text-sky-800 dark:text-gray-100">Candidature — {selectedApp.candidateName}</h3>
+                <p className="text-xs text-sky-400">{selectedApp.candidateEmail}</p>
+              </div>
+              <button onClick={closeAppDetails} className="text-sky-400 hover:text-sky-600">Fermer</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase">Message du candidat</h4>
+                <p className="text-sm text-sky-600 dark:text-gray-300 mt-2 whitespace-pre-wrap">{selectedApp.message || '— Aucune lettre de motivation fournie —'}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase">CV</h4>
+                {selectedApp.cvUrl ? (
+                  <div className="mt-2 flex items-center gap-3">
+                    <a href={selectedApp.cvUrl} target="_blank" rel="noreferrer" className="text-cyan-600 font-bold hover:underline">Ouvrir le CV</a>
+                    {selectedApp.cvName && <span className="text-xs text-sky-400">{selectedApp.cvName}</span>}
+                  </div>
+                ) : (
+                  <p className="text-sm text-sky-400 mt-2">Aucun CV attaché</p>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button onClick={closeAppDetails} className="px-4 py-2 bg-sky-50 text-sky-700 rounded-xl">Fermer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODULE 3 : TOP TALENTS — REVERSE MATCHING ─── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">

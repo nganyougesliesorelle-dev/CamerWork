@@ -52,7 +52,7 @@ export function ReportButton({ targetId, targetType = 'user', recruiterId, class
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'reports'), {
+      const payload = {
         reporterId: user.uid,
         targetId: targetId || 'unknown',
         targetType,
@@ -60,26 +60,43 @@ export function ReportButton({ targetId, targetType = 'user', recruiterId, class
         details: details.trim() || '',
         status: 'pending',
         createdAt: serverTimestamp(),
-      });
+      };
+      try {
+        console.debug('[ReportButton] submitting report', {
+          reporterId: user.uid,
+          targetId: targetId || 'unknown',
+          targetType,
+          payload,
+          dbProject: db?.app?.options?.projectId || db?._databaseId?.projectId || null,
+        });
+      } catch (_) {}
+      const reportRef = collection(db, 'reports');
+      await addDoc(reportRef, payload);
 
       // Auto-suspend : si un recruteur atteint 3 signalements, suspension automatique
       const suspendTargetId = recruiterId || (targetType === 'user' ? targetId : null);
       if (suspendTargetId) {
-        const reportsQ = query(
-          collection(db, 'reports'),
-          where('targetId', '==', suspendTargetId),
-          where('status', 'in', ['pending', 'under_review'])
-        );
-        const reportsSnap = await getDocs(reportsQ);
-        if (reportsSnap.size >= SUSPEND_THRESHOLD) {
-          try {
-            await updateDoc(doc(db, 'users', suspendTargetId), {
-              isSuspended: true,
-              kycStatus: 'suspended',
-              suspendedAt: serverTimestamp(),
-              suspensionReason: `Suspension automatique : ${reportsSnap.size} signalements reçus.`,
-            });
-          } catch (_) { /* silencieux — l'admin sera notifié */ }
+        try {
+          const reportsQ = query(
+            collection(db, 'reports'),
+            where('targetId', '==', suspendTargetId),
+            where('status', 'in', ['pending', 'under_review'])
+          );
+          const reportsSnap = await getDocs(reportsQ);
+          if (reportsSnap.size >= SUSPEND_THRESHOLD) {
+            try {
+              await updateDoc(doc(db, 'users', suspendTargetId), {
+                isSuspended: true,
+                kycStatus: 'suspended',
+                suspendedAt: serverTimestamp(),
+                suspensionReason: `Suspension automatique : ${reportsSnap.size} signalements reçus.`,
+              });
+            } catch (updateErr) {
+              console.warn('[ReportButton] suspension update failed:', updateErr);
+            }
+          }
+        } catch (queryErr) {
+          console.warn('[ReportButton] auto-suspend check skipped:', queryErr);
         }
       }
 
@@ -94,7 +111,8 @@ export function ReportButton({ targetId, targetType = 'user', recruiterId, class
       }, 2000);
     } catch (err) {
       console.error('Erreur signalement:', err);
-      toast.error('Erreur lors de l\'envoi du signalement.');
+      const msg = err?.message || String(err);
+      toast.error(`Erreur lors de l'envoi du signalement: ${msg}`);
     } finally {
       setSubmitting(false);
     }

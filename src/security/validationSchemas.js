@@ -13,6 +13,33 @@ import * as yup from 'yup';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
+function normalizePhoneForCmr(value) {
+  if (typeof value !== 'string') return '';
+  let cleaned = value.trim().replace(/[\s-]/g, '');
+  if (!cleaned) return '';
+  if (cleaned.startsWith('+237')) cleaned = cleaned.slice(4);
+  else if (cleaned.startsWith('00237')) cleaned = cleaned.slice(5);
+  else if (cleaned.startsWith('237') && cleaned.length > 9) cleaned = cleaned.slice(3);
+  return cleaned;
+}
+
+function validateCmrPhone(value) {
+  const normalized = normalizePhoneForCmr(value);
+  return /^[26]\d{8}$/.test(normalized);
+}
+
+function getAgeFromBirthDate(birthDate) {
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
 // Regex pour détecter les tentatives d'injection
 const INJECTION_PATTERNS = /[<>{}()$;`&#]/;
 const SCRIPT_PATTERN = /<script|javascript:|on\w+\s*=/i;
@@ -152,6 +179,18 @@ export const profileUpdateSchema = yup.object({
     .max(3000, 'Résumé trop long')
     .test('no-injection', 'Caractères non autorisés', noInjection)
     .transform((val) => sanitizeHTML(val?.trim() || '')),
+  birthDate: yup
+    .string()
+    .nullable()
+    .test('valid-birthdate', 'Date de naissance invalide', (value) => {
+      if (!value) return true;
+      const birthDate = new Date(value);
+      if (Number.isNaN(birthDate.getTime())) return false;
+      const today = new Date();
+      if (birthDate > today) return false;
+      const age = getAgeFromBirthDate(value);
+      return age !== null && age >= 18 && age <= 100;
+    }),
   phone: yup
     .string()
     .nullable()
@@ -165,8 +204,12 @@ export const profileUpdateSchema = yup.object({
   username: yup
     .string()
     .nullable()
-    .min(3)
-    .max(30)
+    .transform((val) => {
+      if (val === undefined || val === null) return null;
+      const trimmed = String(val).trim();
+      return trimmed === '' ? null : trimmed;
+    })
+    .max(30, 'Nom d’utilisateur trop long')
     .matches(/^[a-zA-Z0-9_-]+$/, 'Uniquement lettres, chiffres, tirets et underscores')
     .test('no-injection', '', noInjection),
 });
@@ -223,8 +266,8 @@ export const reportSchema = yup.object({
 export async function validateAndClean(schema, data) {
   try {
     const cleaned = await schema.validate(data, {
-      stripUnknown: true,  // Supprime les champs non définis dans le schéma
-      abortEarly: false,   // Collecte toutes les erreurs
+      stripUnknown: true,
+      abortEarly: false,
     });
     return { valid: true, data: cleaned };
   } catch (err) {
@@ -238,5 +281,66 @@ export async function validateAndClean(schema, data) {
   }
 }
 
-export { sanitizeHTML, noInjection };
-export default { loginSchema, registerSchema, jobPostSchema, profileUpdateSchema, messageSchema, reportSchema, validateAndClean };
+export async function validateRegistrationPayload(data) {
+  const errors = [];
+
+  if (!data?.fullName || String(data.fullName).trim().length < 2) {
+    errors.push('Le nom complet est requis (minimum 2 caractères).');
+  }
+
+  if (!data?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.email))) {
+    errors.push('L’email est invalide.');
+  }
+
+  if (!data?.password || String(data.password).length < 8) {
+    errors.push('Le mot de passe doit contenir au moins 8 caractères.');
+  }
+
+  if (!data?.role || !['candidate', 'recruiter', 'recruteur', 'candidat', 'student'].includes(String(data.role))) {
+    errors.push('Le rôle est invalide.');
+  }
+
+  if (data?.agreeTerms !== true) {
+    errors.push('Vous devez accepter les conditions d’utilisation.');
+  }
+
+  if (data?.role === 'candidate' || data?.role === 'candidat' || data?.role === 'student') {
+    if (data?.phone && !validateCmrPhone(data.phone)) {
+      errors.push('Le numéro de téléphone doit être un numéro camerounais valide.');
+    }
+
+    if (data?.birthDate) {
+      const birthDate = new Date(data.birthDate);
+      const today = new Date();
+      if (Number.isNaN(birthDate.getTime())) {
+        errors.push('La date de naissance est invalide.');
+      } else if (birthDate > today) {
+        errors.push('La date de naissance ne peut pas être dans le futur.');
+      } else {
+        const age = getAgeFromBirthDate(data.birthDate);
+        if (age === null) {
+          errors.push('La date de naissance est invalide.');
+        } else if (age < 18) {
+          errors.push('Vous devez avoir au moins 18 ans pour créer un compte.');
+        } else if (age > 100) {
+          errors.push('La date de naissance est invalide (âge supérieur à 100 ans).');
+        }
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  return {
+    valid: true,
+    data: {
+      ...data,
+      phone: data?.phone ? normalizePhoneForCmr(data.phone) : '',
+    },
+  };
+}
+
+export { sanitizeHTML, noInjection, normalizePhoneForCmr, validateCmrPhone };
+export default { loginSchema, registerSchema, jobPostSchema, profileUpdateSchema, messageSchema, reportSchema, validateAndClean, validateRegistrationPayload };

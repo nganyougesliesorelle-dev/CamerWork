@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { auth } from '../firebase/firebaseConfig';
+import { auth, db } from '../firebase/firebaseConfig';
 import { signOut } from 'firebase/auth';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { useTheme } from './ThemeContext';
 import { LanguageSwitcher } from './boutons';
 import {
-  Menu, X, Settings, LogOut, HelpCircle, FileText, Shield, Sun, Moon, ExternalLink
+  Menu, X, Settings, LogOut, HelpCircle, FileText, Shield, Sun, Moon, ExternalLink, MessageCircle
 } from 'lucide-react';
 
 export function HamburgerMenu({ className = '' }) {
@@ -15,6 +16,35 @@ export function HamburgerMenu({ className = '' }) {
   const navigate = useNavigate();
   const { darkMode, toggleDarkMode } = useTheme();
   const [open, setOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    let unsubscribe = null;
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setUnreadMessages(0);
+        if (unsubscribe) unsubscribe();
+        return;
+      }
+      const notificationsQuery = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        where('type', '==', 'message'),
+        where('read', '==', false)
+      );
+      unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+        setUnreadMessages(snapshot.size || 0);
+      }, (error) => {
+        console.error('[HamburgerMenu] Notification listen error:', error);
+        setUnreadMessages(0);
+      });
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -28,6 +58,13 @@ export function HamburgerMenu({ className = '' }) {
 
   const menuItems = [
     {
+      label: t('jobList.nav_messages') || 'Messages',
+      icon: MessageCircle,
+      onClick: () => { setOpen(false); navigate('/messages'); },
+      color: 'text-sky-600 dark:text-sky-400',
+      badge: unreadMessages,
+    },
+    {
       label: 'Paramètres',
       icon: Settings,
       onClick: () => { setOpen(false); navigate('/parametres'); },
@@ -38,19 +75,19 @@ export function HamburgerMenu({ className = '' }) {
     {
       label: 'Aide / FAQ',
       icon: HelpCircle,
-      onClick: () => { setOpen(false); navigate('/faq'); },
+      onClick: () => { setOpen(false); },
       color: 'text-sky-600 dark:text-sky-400',
     },
     {
       label: 'Mentions légales & Confidentialité',
       icon: Shield,
-      onClick: () => { setOpen(false); navigate('/legal'); },
+      onClick: () => { setOpen(false); },
       color: 'text-sky-600 dark:text-sky-400',
     },
     {
       label: 'Conditions Générales (CGU)',
       icon: FileText,
-      onClick: () => { setOpen(false); navigate('/cgu'); },
+      onClick: () => { setOpen(false); },
       color: 'text-sky-600 dark:text-sky-400',
     },
     { divider: true },
@@ -124,7 +161,14 @@ export function HamburgerMenu({ className = '' }) {
                     : 'hover:bg-sky-50 dark:hover:bg-gray-700 text-sky-700 dark:text-gray-300'
                 }`}
               >
-                <item.icon size={18} className={item.color} />
+                <div className="relative">
+                  <item.icon size={18} className={item.color} />
+                  {item.badge > 0 && (
+                    <span className="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-[10px] font-black text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
                 {item.label}
               </button>
             )

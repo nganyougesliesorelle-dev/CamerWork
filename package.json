@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "test": "node --test tests/**/*.test.js",
+    "preview": "vite preview",
+    "deploy": "npm run build && npx firebase-tools deploy --only hosting --project camerwork-1e3d0"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",

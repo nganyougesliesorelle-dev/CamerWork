@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc, setDoc, arrayUnion } from 'firebase/firestore';
+import { collection, doc, query, where, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, getDoc, setDoc, arrayUnion, getDocs, writeBatch } from 'firebase/firestore';
 import { ArrowLeft, Send, Briefcase, Building2, ShieldCheck, UserCheck, FileText, Calendar, Phone, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -72,6 +72,27 @@ export function Chat() {
       setLoading(false);
     }, (err) => { console.error('[Chat] Erreur écoute des messages :', err); setLoading(false); });
 
+    // Marquer les notifications de cette conversation comme lues pour l'utilisateur courant
+    (async () => {
+      try {
+        const notifQ = query(
+          collection(db, 'notifications'),
+          where('userId', '==', user.uid),
+          where('type', '==', 'message'),
+          where('chatId', '==', chatId),
+          where('read', '==', false)
+        );
+        const snap = await getDocs(notifQ);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error('[Chat] Erreur en marquant notifications lues :', err);
+      }
+    })();
+
     return () => unsubscribe();
   }, [chatId, navigate]);
 
@@ -102,6 +123,33 @@ export function Chat() {
           lastSenderName: senderName,
           updatedAt: serverTimestamp(),
         }, { merge: true });
+        // Créer une notification pour le destinataire afin qu'il voie le nouveau message
+        try {
+          let recipientId = null;
+          if (chatInfo) {
+            recipientId = currentUser.uid === chatInfo.recruiterId ? chatInfo.candidateId : chatInfo.recruiterId;
+          } else {
+            // Fallback si chatInfo n'est pas encore résolu
+            const parts = chatId.split('_');
+            if (parts.length >= 2) {
+              recipientId = currentUser.uid === parts[0] ? parts[1] : parts[0];
+            }
+          }
+          if (recipientId) {
+            await addDoc(collection(db, 'notifications'), {
+              userId: recipientId,
+              title: 'Nouveau message',
+              message: text.length > 120 ? text.slice(0, 117) + '...' : text,
+              type: 'message',
+              chatId,
+              senderId: currentUser.uid,
+              read: false,
+              createdAt: serverTimestamp(),
+            });
+          }
+        } catch (notifErr) {
+          console.error('[Chat] Erreur création notification:', notifErr);
+        }
       }
     } catch (err) {
       console.error('[Chat] Erreur envoi :', err);

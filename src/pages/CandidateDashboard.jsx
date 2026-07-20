@@ -10,7 +10,7 @@ import { db, auth } from '../firebase/firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getMissingSkills } from '../firebase/matchingEngine';
 import { getResourcesForSkill } from '../data/interviewQuestions';
-import { Target, BookOpen, Briefcase, Clock, CheckCircle2, XCircle, ExternalLink, TrendingUp, ChevronDown, ChevronUp, Lightbulb, ArrowLeft, Heart } from 'lucide-react';
+import { Target, BookOpen, Briefcase, Clock, CheckCircle2, XCircle, ExternalLink, TrendingUp, ChevronDown, ChevronUp, Lightbulb, ArrowLeft, Heart, ChevronRight, MessageCircle, MessageSquare } from 'lucide-react';
 
 export function CandidateDashboard() {
   const { t } = useTranslation();
@@ -21,6 +21,7 @@ export function CandidateDashboard() {
   const [loading, setLoading] = useState(true);
   const [expandedApp, setExpandedApp] = useState(null);
   const [allJobs, setAllJobs] = useState([]);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -35,6 +36,15 @@ export function CandidateDashboard() {
       where('candidateId', '==', user.uid),
       orderBy('appliedAt', 'desc')
     );
+    const qMessages = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'message'),
+      where('read', '==', false)
+    );
+    const unsubMessages = onSnapshot(qMessages, (snapshot) => {
+      setUnreadMessagesCount(snapshot.size || 0);
+    });
     const unsub = onSnapshot(q, async (snapshot) => {
       const apps = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setApplications(apps);
@@ -48,7 +58,7 @@ export function CandidateDashboard() {
       setJobsCache(cache);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { unsub(); unsubMessages(); };
   }, []);
 
   if (loading) {
@@ -162,7 +172,7 @@ export function CandidateDashboard() {
 
   const getMotivationalMessage = (skill) => {
     const key = skill.toLowerCase().trim();
-    return motivationalMessages[key] || ('La maîtrise de ' + skill + ' est un vrai atout. Continue d'apprendre !');
+    return motivationalMessages[key] || `La maîtrise de ${skill} est un vrai atout. Continue d'apprendre !`;
   };
 
 
@@ -180,9 +190,18 @@ export function CandidateDashboard() {
             <div>
               <h1 className="text-2xl font-black tracking-tight">{t('candidateDashboard.title')}</h1>
               <p className="text-sky-300 dark:text-gray-400 text-sm mt-1">
-                {candidate?.displayName || candidate?.name || 'Candidat'} — {applications.length} candidature{applications.length !== 1 ? 's' : ''}
+                {candidate?.displayName || candidate?.name || t('candidateDashboard.unknown_name')} — {applications.length} candidature{applications.length !== 1 ? 's' : ''}
               </p>
             </div>
+
+            <button onClick={() => navigate('/messages')} className="relative inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold text-sky-100 hover:bg-cyan-500 hover:text-white transition-all">
+              <MessageCircle size={18} /> {t('candidateDashboard.top_messages_button')}
+              {unreadMessagesCount > 0 && (
+                <span className="min-w-[1.5rem] h-6 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center px-2">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </button>
 
             {/* Mini-stats */}
             <div className="flex gap-3">
@@ -268,7 +287,39 @@ export function CandidateDashboard() {
           )}
         </div>
 
-        {/* SECTION 2 : Candidatures */}
+        {/* SECTION 2 : Messagerie */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30 p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <div>
+              <h2 className="text-sm font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2">
+                <MessageSquare size={18} className="text-cyan-500" /> {t('candidateDashboard.messages_section_title')}
+              </h2>
+              <p className="text-xs text-sky-500 dark:text-gray-400 mt-1">{t('candidateDashboard.messages_section_desc')}</p>
+            </div>
+            <button onClick={() => navigate('/messages')} className="inline-flex items-center gap-2 bg-sky-50 dark:bg-gray-700/50 border border-sky-100 dark:border-gray-700 text-sky-700 dark:text-gray-100 text-xs font-bold uppercase tracking-wider py-2 px-3 rounded-xl hover:bg-cyan-500 hover:text-white transition-all">
+              {t('candidateDashboard.view_messages')}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-sky-50 dark:bg-gray-900/80 rounded-2xl p-4 border border-sky-100 dark:border-gray-700">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-500 dark:text-cyan-400">{t('candidateDashboard.unread_messages')}</p>
+              <p className="text-3xl font-black text-sky-800 dark:text-white mt-3">{unreadMessagesCount}</p>
+              <p className="text-[11px] text-sky-500 dark:text-gray-400 mt-1">{t('candidateDashboard.unread_messages_help')}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/20">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-500 dark:text-cyan-400">{t('candidateDashboard.quick_access')}</p>
+              <div className="mt-4 space-y-3">
+                <button onClick={() => navigate('/messages')} className="w-full inline-flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-cyan-500 text-white font-bold text-sm hover:bg-cyan-600 transition-all">
+                  {t('candidateDashboard.open_conversations')}
+                  {unreadMessagesCount > 0 && <span className="min-w-[1.5rem] h-6 rounded-full bg-white text-cyan-600 text-[10px] font-black flex items-center justify-center">{unreadMessagesCount}</span>}
+                </button>
+                <p className="text-[11px] text-sky-500 dark:text-gray-400">{t('candidateDashboard.quick_access_help')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 3 : Candidatures */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30 p-6">
           <h2 className="text-sm font-black text-sky-800 dark:text-gray-100 uppercase tracking-wider flex items-center gap-2 mb-4">
             <Briefcase size={18} className="text-cyan-500" /> {t('candidateDashboard.my_applications')} ({applications.length})
@@ -284,6 +335,7 @@ export function CandidateDashboard() {
                 const job = jobsCache[app.jobId];
                 const missing = job?.profile ? getMissingSkills(candidateSkills, job.profile) : [];
                 const isExpanded = expandedApp === app.id;
+
                 return (
                   <div key={app.id} className="border border-sky-100 dark:border-gray-700 rounded-2xl overflow-hidden">
                     <div className="p-4 flex items-center justify-between">
@@ -304,6 +356,7 @@ export function CandidateDashboard() {
                         )}
                       </div>
                     </div>
+
                     {isExpanded && missing.length > 0 && (
                       <div className="border-t border-sky-100 dark:border-gray-700 bg-gradient-to-r from-amber-50 dark:from-amber-900/20 to-sky-50 dark:to-gray-800 p-4 space-y-3">
                         {job?.salary > 0 && (
@@ -321,6 +374,7 @@ export function CandidateDashboard() {
                             </p>
                           </div>
                         )}
+
                         <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-amber-100 dark:border-amber-800">
                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 mb-1">
                             <Lightbulb size={14} className="text-amber-500" /> Conseil personnalisé
@@ -328,17 +382,26 @@ export function CandidateDashboard() {
                           <p className="text-xs text-sky-600 dark:text-gray-300 leading-relaxed">
                             Pour maximiser tes chances, développe :{' '}
                             <strong className="text-sky-800 dark:text-gray-100">{missing.slice(0, 2).join(', ')}</strong>
-                            {missing.length > 2 && <> et <strong className="text-sky-800 dark:text-gray-100">{missing.length - 2} autre{missing.length - 2 > 1 ? 's' : ''} compétence{missing.length - 2 > 1 ? 's' : ''}</strong></>}.
-                            {' '}Chaque lacune comblée te rapproche de l''entretien !
+                            {missing.length > 2 && (
+                              <>
+                                {' '}
+                                et{' '}
+                                <strong className="text-sky-800 dark:text-gray-100">
+                                  {missing.length - 2} autre{missing.length - 2 > 1 ? 's' : ''} compétence{missing.length - 2 > 1 ? 's' : ''}
+                                </strong>
+                              </>
+                            )}
+                            .{' '}Chaque lacune comblée te rapproche de l''entretien !
                           </p>
                         </div>
+
                         <div className="space-y-2">
                           <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                             Plan d''action personnalisé
                           </h4>
                           {missing.slice(0, 4).map((skill, i) => (
                             <div key={i} className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-amber-50 dark:border-amber-900/50 flex items-start gap-3">
-                              <span className="w-6 h-6 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{i+1}</span>
+                              <span className="w-6 h-6 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{i + 1}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-bold text-sky-800 dark:text-gray-100">{skill}</p>
                                 <p className="text-[11px] text-sky-500 dark:text-gray-400 mt-0.5 leading-relaxed">{getMotivationalMessage(skill)}</p>
@@ -346,6 +409,7 @@ export function CandidateDashboard() {
                             </div>
                           ))}
                         </div>
+
                         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4">
                           <h3 className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase mb-3">
                             Ressources pour apprendre
@@ -372,7 +436,14 @@ export function CandidateDashboard() {
                         </div>
                       </div>
                     )}
-{/* SECTION 3 : Accès rapide aux favoris */}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 3 : Accès rapide aux favoris */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-sky-100 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30 p-5">
           <button
             onClick={() => navigate('/favoris')}

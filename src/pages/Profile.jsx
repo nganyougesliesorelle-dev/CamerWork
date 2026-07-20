@@ -9,17 +9,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/firebaseConfig';
 import { doc, getDoc, getDocs, updateDoc, collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { onAuthStateChanged } from 'firebase/auth'; 
+import { onAuthStateChanged, updateProfile } from 'firebase/auth'; 
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { uploadCV } from '../firebase/authService';
-import { CvGeneratorButton } from '../composants/CvGenerator';
 import { KycBadge } from '../composants/KycBadge'; 
+import { addSkillToSelection, filterSkills } from '../data/skills';
+import { profileUpdateSchema } from '../security/validationSchemas';
 import { calculateMatchingScore } from '../firebase/matchingEngine';
 import { requestNotificationPermission } from '../firebase/notificationService';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { AnimatedPage } from '../composants/AnimatedPage';
 import { MfaSetup } from '../security/MfaSetup';
+import { resolveAvatarUrl } from '../utils/avatar';
 
 const CAMEROON_CITIES = [
   "Yaoundé", "Douala", "Garoua", "Maroua", "Bafoussam", 
@@ -42,14 +44,19 @@ export function Profile() {
   const [uploading, setUploading] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [matchScores, setMatchScores] = useState({});
+  const [applicationJobs, setApplicationJobs] = useState({});
   const candidateRef = useRef(null);
   const [hasScheduledInterview, setHasScheduledInterview] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [checkingInterview, setCheckingInterview] = useState(false);
+  const [skillSuggestions, setSkillSuggestions] = useState([]);
+  const [skillInput, setSkillInput] = useState('');
+  const [cvLabelInput, setCvLabelInput] = useState('');
 
   const isMyProfile = !id || id === auth.currentUser?.uid;
 
-  // Ã‰coute des notifications non lues pour le badge
+  // Écoute des notifications non lues pour le badge
   useEffect(() => {
     if (!isMyProfile) return;
     const user = auth.currentUser;
@@ -57,6 +64,22 @@ export function Profile() {
     const q = query(collection(db, 'notifications'), where('userId', '==', user.uid));
     return onSnapshot(q, (snap) => {
       setUnreadNotifs(snap.docs.filter(d => !d.data().read).length);
+    });
+  }, [isMyProfile]);
+
+  // Écoute des nouveaux messages non lus pour le badge Messages
+  useEffect(() => {
+    if (!isMyProfile) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('type', '==', 'message'),
+      where('read', '==', false)
+    );
+    return onSnapshot(q, (snap) => {
+      setUnreadMessages(snap.size || 0);
     });
   }, [isMyProfile]);
 
@@ -103,8 +126,16 @@ export function Profile() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setCandidate(data);
-          candidateRef.current = data;
+          const normalizedCvLibrary = Array.isArray(data.cvLibrary) && data.cvLibrary.length
+            ? data.cvLibrary
+            : (data.cvUrl ? [{ id: data.cvId || `legacy-${data.cvUrl}`, url: data.cvUrl, name: data.cvName || 'CV principal', label: data.cvLabel || 'CV principal' }] : []);
+          const normalizedCandidate = {
+            ...data,
+            cvLibrary: normalizedCvLibrary,
+            primaryCvId: data.primaryCvId || data.cvId || normalizedCvLibrary[0]?.id || '',
+          };
+          setCandidate(normalizedCandidate);
+          candidateRef.current = normalizedCandidate;
         }
       } catch (error) {
         console.error("Erreur profil:", error);
@@ -153,6 +184,7 @@ export function Profile() {
             if (job && candidateRef.current) {
               const score = calculateMatchingScore(candidateRef.current, job);
               setMatchScores(prev => ({ ...prev, [app.id]: score }));
+              setApplicationJobs(prev => ({ ...prev, [app.id]: job }));
             }
           } catch (_e) { /* ignore */ }
         });
@@ -204,22 +236,53 @@ export function Profile() {
 
   const handleSave = async () => {
     if (!auth.currentUser) return toast.error(t('profile.must_login'));
-    
+
+    const displayName = String(candidate.displayName || candidate.fullName || '').trim();
+    const safeDisplayName = displayName || candidate.email?.split('@')[0] || 'Utilisateur';
+    const username = String(candidate.username || '').trim();
+
+    const validation = await profileUpdateSchema.validate({
+      summary: candidate.summary || '',
+      birthDate: candidate.birthDate || '',
+      phone: candidate.phone || '',
+      skills: (candidate.skills || []).filter(Boolean),
+      location: candidate.location || '',
+      username,
+    }).catch((err) => err);
+
+    if (validation?.errors) {
+      toast.error(validation.errors[0]);
+      return;
+    }
+
     try {
       const docRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(docRef, {
+      const primaryCv = (candidate.cvLibrary || []).find((cv) => cv.id === candidate.primaryCvId) || (candidate.cvLibrary || [])[0] || null;
+      const updates = {
         summary: candidate.summary || "",
         phone: candidate.phone || "",
-        skills: candidate.skills || [],
+        skills: (candidate.skills || []).filter(Boolean),
         location: candidate.location || "",
-        cvUrl: candidate.cvUrl || "",
+        cvUrl: primaryCv?.url || candidate.cvUrl || "",
+        cvName: primaryCv?.name || candidate.cvName || "",
+        cvLabel: primaryCv?.label || candidate.cvLabel || "",
+        cvId: primaryCv?.id || candidate.cvId || "",
+        primaryCvId: candidate.primaryCvId || primaryCv?.id || candidate.cvId || "",
+        cvLibrary: candidate.cvLibrary || [],
         gender: candidate.gender || "",
         birthDate: candidate.birthDate || "",
-        username: candidate.username || "",
+        username: username || "",
+        displayName: safeDisplayName,
+        fullName: safeDisplayName,
         portfolioUrls: candidate.portfolioUrls || [],
         expectedSalary: candidate.expectedSalary || "",
         maritalStatus: candidate.maritalStatus || "",
-      });
+        bio: candidate.bio || "",
+      };
+
+      await updateDoc(docRef, updates);
+      await updateProfile(auth.currentUser, { displayName: safeDisplayName });
+      setCandidate({ ...candidate, ...updates });
       setIsEditing(false);
       toast.success(t('notifications.success_profile_saved'));
     } catch (_error) {
@@ -230,13 +293,17 @@ export function Profile() {
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const result = await uploadCV(file, auth.currentUser.uid);
 
     if (result.success) {
-      setCandidate({ ...candidate, photoURL: result.url });
+      const nextCandidate = { ...candidate, photoURL: result.url };
+      setCandidate(nextCandidate);
       try {
-        await updateDoc(doc(db, "users", auth.currentUser.uid), { photoURL: result.url });
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          photoURL: result.url,
+          avatarSource: 'custom',
+        });
         toast.success(t('notifications.success_avatar'));
       } catch (_err) {
         toast.error(t('profile.image_error'));
@@ -292,23 +359,124 @@ export function Profile() {
     if (file.type !== "application/pdf") return toast.error(t('profile.pdf_only'));
 
     setUploading(true);
-    const result = await uploadCV(file, auth.currentUser.uid);
+    const label = cvLabelInput.trim() || file.name.replace(/\.pdf$/i, '') || 'CV';
+    const result = await uploadCV(file, auth.currentUser.uid, { label, makePrimary: true });
     setUploading(false);
 
     if (result.success) {
-      setCandidate({ ...candidate, cvUrl: result.url, cvName: file.name });
+      const nextLibrary = result.cvLibrary || [];
+      setCandidate({
+        ...candidate,
+        cvUrl: result.url,
+        cvName: result.name,
+        cvLabel: result.label,
+        cvId: result.id,
+        primaryCvId: result.primaryCvId,
+        cvLibrary: nextLibrary,
+      });
+      setCvLabelInput('');
       toast.success(t('notifications.success_cv_uploaded'));
     }
   };
 
+  const setPrimaryCv = (cvId) => {
+    const selectedCv = (candidate.cvLibrary || []).find((cv) => cv.id === cvId);
+    if (!selectedCv) return;
+
+    setCandidate({
+      ...candidate,
+      primaryCvId: cvId,
+      cvUrl: selectedCv.url,
+      cvName: selectedCv.name,
+      cvLabel: selectedCv.label,
+      cvId: cvId,
+    });
+  };
+
+  const updateCvLabel = async (cvId, newLabel) => {
+    const trimmedLabel = String(newLabel || '').trim();
+    if (!trimmedLabel) return;
+
+    const nextLibrary = (candidate.cvLibrary || []).map((cv) =>
+      cv.id === cvId ? { ...cv, label: trimmedLabel } : cv
+    );
+
+    const nextCandidate = {
+      ...candidate,
+      cvLibrary: nextLibrary,
+    };
+
+    setCandidate(nextCandidate);
+
+    try {
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        cvLibrary: nextLibrary,
+        primaryCvId: nextCandidate.primaryCvId || nextLibrary[0]?.id || '',
+      });
+      toast.success('Surnom mis à jour');
+    } catch (_err) {
+      toast.error('Erreur lors du renommage du CV');
+    }
+  };
+
+  const removeCv = async (cvId) => {
+    if (!window.confirm('Supprimer ce CV de votre bibliothèque ?')) return;
+
+    const nextLibrary = (candidate.cvLibrary || []).filter((cv) => cv.id !== cvId);
+    const nextPrimary = nextLibrary.length
+      ? (candidate.primaryCvId === cvId ? nextLibrary[0].id : candidate.primaryCvId)
+      : '';
+    const primaryCv = nextLibrary.find((cv) => cv.id === nextPrimary) || nextLibrary[0] || null;
+
+    const nextCandidate = {
+      ...candidate,
+      cvLibrary: nextLibrary,
+      primaryCvId: nextPrimary,
+      cvUrl: primaryCv?.url || '',
+      cvName: primaryCv?.name || '',
+      cvLabel: primaryCv?.label || '',
+      cvId: primaryCv?.id || '',
+    };
+
+    setCandidate(nextCandidate);
+
+    try {
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        cvLibrary: nextLibrary,
+        primaryCvId: nextPrimary,
+        cvUrl: primaryCv?.url || '',
+        cvName: primaryCv?.name || '',
+        cvLabel: primaryCv?.label || '',
+        cvId: primaryCv?.id || '',
+      });
+      toast.success('CV supprimé');
+    } catch (_err) {
+      toast.error('Erreur lors de la suppression du CV');
+    }
+  };
+
   const addSkill = () => {
-    if (newSkill.trim() && !candidate.skills?.includes(newSkill.trim())) {
+    const value = newSkill.trim();
+    const validSkill = filterSkills(value, 1)[0] || value;
+    if (validSkill) {
+      const nextSkills = addSkillToSelection(candidate.skills || [], validSkill);
       setCandidate({
-        ...candidate, 
-        skills: [...(candidate.skills || []), newSkill.trim()]
+        ...candidate,
+        skills: nextSkills
       });
       setNewSkill('');
+      setSkillSuggestions([]);
     }
+  };
+
+  const addSuggestedSkill = (skill) => {
+    const nextSkills = addSkillToSelection(candidate.skills || [], skill);
+    setCandidate({
+      ...candidate,
+      skills: nextSkills
+    });
+    setNewSkill('');
+    setSkillSuggestions([]);
   };
 
   const removeSkill = (skillToRemove) => {
@@ -316,6 +484,11 @@ export function Profile() {
       ...candidate,
       skills: candidate.skills.filter(s => s !== skillToRemove)
     });
+  };
+
+  const handleSkillInputChange = (value) => {
+    setNewSkill(value);
+    setSkillSuggestions(filterSkills(value, 8));
   };
 
   // Ajout d'ami : crée une relation + notification
@@ -392,7 +565,11 @@ export function Profile() {
             <div className="relative shrink-0 group">
               <div className="w-20 h-20 md:w-28 md:h-28 bg-sky-800 dark:bg-gray-700 rounded-2xl border-4 border-white/20 shadow-2xl dark:shadow-gray-900/30 overflow-hidden flex items-center justify-center text-sky-300 dark:text-gray-400 font-black text-3xl md:text-4xl uppercase">
                 {candidate.photoURL ? (
-                  <img src={candidate.photoURL} alt="Profil" className="w-full h-full object-cover" />
+                  <img src={resolveAvatarUrl({
+                    existingPhotoURL: candidate.photoURL,
+                    googlePhotoURL: candidate.googlePhotoURL || auth.currentUser?.photoURL || '',
+                    avatarSource: candidate.avatarSource,
+                  })} alt="Profil" className="w-full h-full object-cover" />
                 ) : (
                   (candidate.displayName || candidate.fullName || "U").charAt(0)
                 )}
@@ -413,9 +590,18 @@ export function Profile() {
 
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-3 mb-1">
-                <h1 className="text-xl md:text-3xl font-black tracking-tight truncate">
-                  {candidate.displayName || candidate.fullName || "Utilisateur"}
-                </h1>
+                {isEditing ? (
+                  <input
+                    value={candidate.displayName || candidate.fullName || ''}
+                    onChange={(e) => setCandidate({ ...candidate, displayName: e.target.value, fullName: e.target.value })}
+                    className="w-full max-w-md px-3 py-2 rounded-xl border border-sky-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/80 text-sky-800 dark:text-gray-100 text-sm font-semibold outline-none focus:border-cyan-500"
+                    placeholder="Nom affiché / prénom et nom"
+                  />
+                ) : (
+                  <h1 className="text-xl md:text-3xl font-black tracking-tight truncate">
+                    {candidate.displayName || candidate.fullName || "Utilisateur"}
+                  </h1>
+                )}
                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                   {candidate.role === 'recruiter' ? t('profile.recruiter') : t('profile.candidate')}
                 </span>
@@ -455,6 +641,11 @@ export function Profile() {
                   title="Messages"
                 >
                   <MessageCircle size={18} />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </button>
               )}
               {/* Notifications */}
@@ -473,10 +664,7 @@ export function Profile() {
                 </button>
               )}
 
-              {isCandidateUser && isMyProfile && (
-                <CvGeneratorButton profile={candidate} />
-              )}
-            {isMyProfile && (
+              {isMyProfile && (
               <div className="flex gap-2">
                 <button
                   onClick={() => setIsEditing(!isEditing)}
@@ -619,16 +807,25 @@ export function Profile() {
 
               {/* CV */}
               <div className="pt-3 border-t border-sky-100 dark:border-gray-700">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-sm">
                     <FileText size={15} className="text-sky-400 dark:text-gray-400" />
                     <span className="font-medium text-sky-700 dark:text-gray-300">CV</span>
                   </div>
                   {isEditing ? (
-                    <label className="cursor-pointer flex items-center gap-1 text-xs font-black text-cyan-500 hover:underline">
-                      <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
-                      {uploading ? "Envoi..." : "Uploader"} <Upload size={12} />
-                    </label>
+                    <div className="flex flex-col items-end gap-2">
+                      <input
+                        type="text"
+                        value={cvLabelInput}
+                        onChange={(e) => setCvLabelInput(e.target.value)}
+                        placeholder="Surnom du CV"
+                        className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
+                      />
+                      <label className="cursor-pointer flex items-center gap-1 text-xs font-black text-cyan-500 hover:underline">
+                        <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
+                        {uploading ? "Envoi..." : "Ajouter un CV"} <Upload size={12} />
+                      </label>
+                    </div>
                   ) : candidate.cvUrl ? (
                     <a href={candidate.cvUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-cyan-500 hover:underline flex items-center gap-1">
                       Consulter <LinkIcon size={12} />
@@ -637,6 +834,44 @@ export function Profile() {
                     <span className="text-xs text-sky-400 dark:text-gray-400 italic">Aucun CV</span>
                   )}
                 </div>
+
+                {(candidate.cvLibrary || []).length > 0 && (
+                  <div className="space-y-2">
+                    {(candidate.cvLibrary || []).map((cv) => {
+                      const isPrimary = candidate.primaryCvId ? cv.id === candidate.primaryCvId : cv.url === candidate.cvUrl;
+                      return (
+                        <div key={cv.id || cv.url} className="rounded-xl border border-sky-100 dark:border-gray-700 bg-sky-50/70 dark:bg-gray-700/40 p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-sky-800 dark:text-gray-100 truncate">{cv.label || cv.name || 'CV'}</p>
+                              <p className="text-[11px] text-sky-500 dark:text-gray-400 truncate">{cv.name || 'CV PDF'}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isPrimary ? (
+                                <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">Principal</span>
+                              ) : isEditing ? (
+                                <button onClick={() => setPrimaryCv(cv.id)} className="text-[10px] font-black text-cyan-600 hover:underline">Choisir</button>
+                              ) : null}
+                              <a href={cv.url} target="_blank" rel="noreferrer" className="text-[10px] font-black text-sky-600 hover:underline">Ouvrir</a>
+                            </div>
+                          </div>
+                          {isEditing && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <input
+                                type="text"
+                                defaultValue={cv.label || cv.name || ''}
+                                onBlur={(e) => updateCvLabel(cv.id, e.target.value)}
+                                className="flex-1 bg-white dark:bg-gray-800 border border-sky-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[11px] text-sky-700 dark:text-gray-300 outline-none focus:border-cyan-500"
+                                placeholder="Renommer"
+                              />
+                              <button onClick={() => removeCv(cv.id)} className="text-[10px] font-black text-red-500 hover:underline">Supprimer</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -796,6 +1031,15 @@ export function Profile() {
                                 )}
                               </div>
                               <p className="text-xs text-sky-500 dark:text-gray-400 font-medium">{app.company}</p>
+                              {applicationJobs[app.id]?.profile?.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {applicationJobs[app.id].profile.slice(0, 4).map((skill, skillIndex) => (
+                                    <span key={skillIndex} className="text-[10px] font-black uppercase tracking-[0.15em] bg-sky-100 dark:bg-gray-700 text-sky-700 dark:text-gray-200 px-2 py-1 rounded-full">
+                                      {skill}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <button 
@@ -841,7 +1085,7 @@ export function Profile() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {(candidate.skills || []).map((skill, index) => (
-                    <span key={index} className="flex items-center gap-1.5 bg-sky-50 dark:bg-gray-700/50 text-sky-700 dark:text-gray-300 px-3 py-1.5 rounded-xl text-xs font-bold border border-sky-100 dark:border-gray-700">
+                    <span key={index} className="flex items-center gap-1.5 bg-cyan-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold border border-transparent">
                       {skill}
                       {isEditing && (
                         <button onClick={() => removeSkill(skill)} className="text-red-400 hover:text-red-600 ml-1">
@@ -851,18 +1095,27 @@ export function Profile() {
                     </span>
                   ))}
                   {isEditing && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="relative flex items-center gap-1.5">
                       <input 
                         type="text" 
                         value={newSkill} 
-                        onChange={(e) => setNewSkill(e.target.value)}
+                        onChange={(e) => handleSkillInputChange(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
-                        placeholder="Ajouter une compétence..."
-                        className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 px-3 py-1.5 rounded-xl text-xs outline-none focus:border-cyan-500 text-sky-700 dark:text-gray-300 placeholder:text-sky-400 dark:placeholder:text-gray-500 w-44"
+                        placeholder="Tapez une compétence..."
+                        className="bg-sky-50 dark:bg-gray-700/50 border border-sky-200 dark:border-gray-600 px-3 py-1.5 rounded-xl text-xs outline-none focus:border-cyan-500 text-sky-700 dark:text-gray-300 placeholder:text-sky-400 dark:placeholder:text-gray-500 w-56"
                       />
                       <button onClick={addSkill} className="p-1.5 bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-all">
                         <Plus size={14} />
                       </button>
+                      {skillSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 mt-2 max-h-48 w-64 overflow-auto rounded-xl border border-sky-200 bg-white p-2 shadow-lg z-20">
+                          {skillSuggestions.map((skill) => (
+                            <button key={skill} type="button" onClick={() => addSuggestedSkill(skill)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-sky-700 hover:bg-sky-50">
+                              {skill}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {(!candidate.skills || candidate.skills.length === 0) && !isEditing && (

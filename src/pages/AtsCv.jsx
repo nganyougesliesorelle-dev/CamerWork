@@ -119,7 +119,7 @@ export function AtsCv() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-sky-100 dark:border-gray-700">
               <h2 className="text-xs font-black text-sky-800 dark:text-gray-100 uppercase mb-3 flex items-center gap-2"><Star size={14} className="text-cyan-500" /> Compétences</h2>
               <div className="flex flex-wrap gap-2 mb-3">
-                {cv.skills.map((s, i) => <span key={i} className="flex items-center gap-1 bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-lg text-xs font-bold">{s} <button onClick={() => setCv({...cv, skills: cv.skills.filter(x => x !== s)})}><X size={12} /></button></span>)}
+                {cv.skills.map((s, i) => <span key={i} className="flex items-center gap-1 bg-cyan-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold">{s} <button onClick={() => setCv({...cv, skills: cv.skills.filter(x => x !== s)})}><X size={12} /></button></span>)}
               </div>
               <div className="flex gap-2"><input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSkill())} className="flex-1 p-2.5 bg-sky-50 dark:bg-gray-800 rounded-xl text-sm outline-none border border-sky-100 dark:border-gray-700" placeholder="React, Firebase..." /><button onClick={addSkill} className="px-4 bg-cyan-500 text-white rounded-xl text-xs font-black">+</button></div>
             </div>
@@ -185,7 +185,7 @@ export function AtsCv() {
                 </div>
               </div>
               {cv.summary && <div className="mb-4"><h3 className="text-xs font-black text-sky-600 dark:text-gray-300 uppercase mb-1">Résumé</h3><p className="text-sm text-sky-700 dark:text-gray-300 leading-relaxed">{cv.summary}</p></div>}
-              {cv.skills.length > 0 && <div className="mb-4"><h3 className="text-xs font-black text-sky-600 dark:text-gray-300 uppercase mb-1">Compétences</h3><div className="flex flex-wrap gap-1.5">{cv.skills.map((s, i) => <span key={i} className="bg-sky-50 dark:bg-gray-700 text-sky-700 dark:text-gray-300 px-2 py-0.5 rounded text-xs font-bold">{s}</span>)}</div></div>}
+              {cv.skills.length > 0 && <div className="mb-4"><h3 className="text-xs font-black text-sky-600 dark:text-gray-300 uppercase mb-1">Compétences</h3><div className="flex flex-wrap gap-1.5">{cv.skills.map((s, i) => <span key={i} className="bg-cyan-600 text-white px-2 py-0.5 rounded text-xs font-bold">{s}</span>)}</div></div>}
               {cv.experience.some(e => e.company) && <div className="mb-4"><h3 className="text-xs font-black text-sky-600 dark:text-gray-300 uppercase mb-1">Expérience</h3>{cv.experience.filter(e => e.company).map((e, i) => <div key={i} className="mb-2"><p className="text-sm font-bold text-sky-800 dark:text-gray-100">{e.role} — {e.company}</p><p className="text-xs text-sky-400 dark:text-gray-400">{e.period}</p></div>)}</div>}
               {cv.education.some(e => e.school) && <div className="mb-4"><h3 className="text-xs font-black text-sky-600 dark:text-gray-300 uppercase mb-1">Formation</h3>{cv.education.filter(e => e.school).map((e, i) => <div key={i} className="mb-1"><p className="text-sm font-bold text-sky-800 dark:text-gray-100">{e.degree} — {e.school}</p><p className="text-xs text-sky-400 dark:text-gray-400">{e.year}</p></div>)}</div>}
               {cv.languages.length > 0 && <p className="text-xs text-sky-500 dark:text-gray-300">Langues : {cv.languages.join(', ')}</p>}

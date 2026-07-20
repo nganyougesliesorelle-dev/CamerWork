@@ -175,7 +175,8 @@ function App() {
             <ErrorBoundary showError={import.meta.env.DEV}>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Home />} />
+                <Route path="/login" element={<Home initialMode="login" />} />
+                <Route path="/signup" element={<Home initialMode="signup" />} />
                 <Route path="/offres" element={<JobList />} />
                 <Route path="/offres/:id" element={<JobDetails />} />
                 <Route path="/profil" element={<Profile />} />

@@ -19,7 +19,7 @@ export function JobCard({ job, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="group bg-white dark:bg-gray-800 border border-sky-200 dark:border-gray-600 rounded-2xl p-5 hover:border-blue-400 hover:shadow-xl hover:shadow-sky-500/10 dark:hover:shadow-gray-900/30 transition-all cursor-pointer relative overflow-hidden"
+      className="group p-6 rounded-2xl bg-sky-50 dark:bg-gray-700 border-none hover:bg-sky-100 dark:hover:bg-gray-600 hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between"
     >
       {/* Petite barre décorative au hover */}
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-600 opacity-0 group-hover:opacity-100 transition-all" />

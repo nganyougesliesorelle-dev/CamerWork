@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Moteur de matching intelligent — CamerWork.
  *
  * Fonctions exportées :
@@ -15,32 +15,71 @@
 /**
  * Calcule le pourcentage de correspondance entre un candidat et une offre.
  */
+const SKILL_WEIGHT = 70;
+const CITY_WEIGHT = 30;
+
+const normalizeSkill = (rawValue) => {
+  return String(rawValue || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-zA-Z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+};
+
+const getSkillTokens = (value) => {
+  const normalized = normalizeSkill(value);
+  return new Set(normalized.split(' ').filter(Boolean));
+};
+
+const isSkillMatch = (requirement, skill) => {
+  const cleanReq = normalizeSkill(requirement);
+  const cleanSkill = normalizeSkill(skill);
+  if (!cleanReq || !cleanSkill) return false;
+  if (cleanReq === cleanSkill) return true;
+
+  const shortSuffix = /^(js|ts|jsx|tsx)$/;
+  if (cleanReq.startsWith(cleanSkill) && shortSuffix.test(cleanReq.slice(cleanSkill.length))) return true;
+  if (cleanSkill.startsWith(cleanReq) && shortSuffix.test(cleanSkill.slice(cleanReq.length))) return true;
+
+  const reqTokens = getSkillTokens(cleanReq);
+  const skillTokens = getSkillTokens(cleanSkill);
+  return [...reqTokens].some((token) => token.length >= 3 && skillTokens.has(token));
+};
+
 export function calculateMatchingScore(candidate, job) {
   if (!candidate || !job) return 0;
 
-  const candidateSkills = candidate.skills || [];
-  const jobRequirements = job.profile || [];
+  const candidateSkills = (candidate.skills || []).map(normalizeSkill).filter(Boolean);
+  const jobRequirements = (job.profile || []).map(String).filter(Boolean);
 
   let skillScore = 0;
   let locationScore = 0;
 
   if (jobRequirements.length > 0 && candidateSkills.length > 0) {
-    const cleanCandidateSkills = candidateSkills.map(s => s.toLowerCase().trim());
-
     let matchedSkillsCount = 0;
-    jobRequirements.forEach(req => {
-      const cleanReq = req.toLowerCase().trim();
-      if (cleanCandidateSkills.some(skill => skill.includes(cleanReq) || cleanReq.includes(skill))) {
+    jobRequirements.forEach((req) => {
+      if (candidateSkills.some((skill) => isSkillMatch(req, skill))) {
         matchedSkillsCount++;
       }
     });
 
-    skillScore = (matchedSkillsCount / jobRequirements.length) * 70;
+    skillScore = (matchedSkillsCount / jobRequirements.length) * SKILL_WEIGHT;
+    try {
+      console.debug('[matchingEngine] calc', {
+        jobId: job.id || null,
+        jobReqCount: jobRequirements.length,
+        candidateSkillCount: candidateSkills.length,
+        matchedSkillsCount,
+        skillScore: Math.round(skillScore),
+      });
+    } catch (_) {}
   }
 
   if (candidate.location && job.city) {
     if (candidate.location.toLowerCase().trim() === job.city.toLowerCase().trim()) {
-      locationScore = 30;
+      locationScore = CITY_WEIGHT;
     }
   }
 
@@ -55,11 +94,10 @@ export function calculateMatchingScore(candidate, job) {
  */
 export function getMissingSkills(candidateSkills, jobRequirements) {
   if (!candidateSkills || !jobRequirements) return jobRequirements || [];
-  const cleanCandidate = candidateSkills.map(s => s.toLowerCase().trim());
+  const cleanCandidate = candidateSkills.map(normalizeSkill).filter(Boolean);
 
-  return jobRequirements.filter(req => {
-    const cleanReq = req.toLowerCase().trim();
-    return !cleanCandidate.some(skill => skill.includes(cleanReq) || cleanReq.includes(skill));
+  return jobRequirements.filter((req) => {
+    return !cleanCandidate.some((skill) => isSkillMatch(req, skill));
   });
 }
 
@@ -78,35 +116,31 @@ export function getMissingSkills(candidateSkills, jobRequirements) {
 export function reverseMatchCandidates(job, candidates, topN = 5) {
   if (!job || !candidates || candidates.length === 0) return [];
 
-  const jobSkills = (job.profile || []).map(s => s.toLowerCase().trim());
-  const jobCity = (job.city || '').toLowerCase().trim();
+  const jobSkills = (job.profile || []).map(normalizeSkill).filter(Boolean);
 
   const scored = candidates.map(candidate => {
-    const candidateSkills = (candidate.skills || []).map(s => s.toLowerCase().trim());
+    const candidateSkills = (candidate.skills || []).map(normalizeSkill).filter(Boolean);
     const candidateCity = (candidate.location || '').toLowerCase().trim();
 
     // Compétences communes
     const commonSkills = [];
-    jobSkills.forEach(jSkill => {
-      if (candidateSkills.some(cSkill => cSkill.includes(jSkill) || jSkill.includes(cSkill))) {
+    jobSkills.forEach((jSkill) => {
+      if (candidateSkills.some((cSkill) => isSkillMatch(jSkill, cSkill))) {
         commonSkills.push(jSkill);
       }
     });
 
     // Même ville ?
-    const sameCity = jobCity && candidateCity && jobCity === candidateCity;
+    const sameCity = Boolean(job.city && candidateCity && job.city.toLowerCase().trim() === candidateCity);
 
-    // Formule : (compétences communes × 15) + (même ville × 25)
-    const score = (commonSkills.length * 15) + (sameCity ? 25 : 0);
-
-    // Normaliser en pourcentage (max théorique basé sur le nombre de compétences + bonus ville)
-    const maxPossible = (jobSkills.length * 15) + 25;
-    const percentage = maxPossible > 0 ? Math.round((score / maxPossible) * 100) : 0;
+    // Calcule le pourcentage exactement comme calculateMatchingScore
+    const skillScore = jobSkills.length > 0 ? (commonSkills.length / jobSkills.length) * SKILL_WEIGHT : 0;
+    const locationScore = sameCity ? CITY_WEIGHT : 0;
+    const percentage = Math.round(skillScore + locationScore);
 
     return {
       candidate: { ...candidate, id: candidate.id },
       score: percentage,
-      rawScore: score,
       commonSkills: commonSkills.length,
       totalRequired: jobSkills.length,
       sameCity,
@@ -116,7 +150,8 @@ export function reverseMatchCandidates(job, candidates, topN = 5) {
 
   // Tri décroissant et limite au top N
   return scored
-    .filter(s => s.rawScore > 0 || s.sameCity)
+    .filter(s => s.score > 0 || s.sameCity)
     .sort((a, b) => b.score - a.score)
     .slice(0, topN);
 }
+

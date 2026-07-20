@@ -56,15 +56,22 @@ export function LandingPage() {
             </span>
           </div>
 
-          {/* Langue + Connexion à droite */}
-          <div className="flex items-center gap-3">
+          {/* Langue + actions d'accès à droite */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher variant="pill" />
 
-            <button 
-              onClick={() => navigate('/login')} 
-              className="bg-sky-900 hover:bg-sky-800 text-white text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all active:scale-95 hidden sm:block"
+            <button
+              onClick={() => navigate('/login')}
+              className="border border-sky-200 bg-white/80 text-sky-800 hover:bg-sky-50 text-xs font-bold uppercase tracking-wider px-3 sm:px-4 py-2.5 rounded-xl transition-all active:scale-95"
             >
-              {t('auth.essai_gratuit')}
+              {t('auth.login', 'Se connecter')}
+            </button>
+
+            <button
+              onClick={() => navigate('/signup')}
+              className="bg-sky-900 hover:bg-sky-800 text-white text-xs font-bold uppercase tracking-wider px-3 sm:px-4 py-2.5 rounded-xl transition-all active:scale-95"
+            >
+              {t('auth.essai_gratuit', 'Créer un compte')}
             </button>
           </div>
         </div>
@@ -114,11 +121,11 @@ export function LandingPage() {
                 {t('landing.cta_google')}
               </button>
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/signup')}
                 className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-black uppercase tracking-wider px-6 py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 <Mail size={18} />
-                S'inscrire avec l'email
+                {t('landing.cta_email')}
               </button>
             </div>
 
@@ -135,7 +142,7 @@ export function LandingPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
                 <span className="w-2.5 h-2.5 rounded-full bg-teal-400" />
-                <span className="text-xs text-sky-400 font-bold ml-2"># salon-entretien-camerwork</span>
+                <span className="text-xs text-sky-400 font-bold ml-2">{t('landing.panel_tag')}</span>
               </div>
               
               <div className="space-y-3">
@@ -143,10 +150,10 @@ export function LandingPage() {
                   <div className="w-7 h-7 bg-sky-100 text-sky-600 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">RH</div>
                   <div>
                     <p className="text-xs font-bold text-sky-900 flex items-center gap-1.5">
-                      Responsable Recrutement <span className="text-[10px] text-sky-400 font-normal">14:32</span>
+                      {t('landing.panel_recruiter')} <span className="text-[10px] text-sky-400 font-normal">{t('landing.panel_time_1')}</span>
                     </p>
                     <p className="text-xs text-sky-600 mt-0.5 bg-sky-50 p-2.5 rounded-xl rounded-tl-none border border-sky-100">
-                      Bonjour ! Votre profil coche toutes nos cases en React & Spring Boot.
+                      {t('landing.panel_message')}
                     </p>
                   </div>
                 </div>
@@ -154,17 +161,17 @@ export function LandingPage() {
                 <div className="flex gap-2.5 items-start justify-end">
                   <div className="text-right">
                     <p className="text-xs font-bold text-sky-900 flex items-center gap-1.5 justify-end">
-                      <span className="text-[10px] text-sky-400 font-normal">14:35</span> Vous
+                      <span className="text-[10px] text-sky-400 font-normal">{t('landing.panel_time_2')}</span> {t('landing.panel_you')}
                     </p>
                     <p className="text-xs text-white bg-sky-600 p-2.5 rounded-xl rounded-tr-none shadow-xs mt-0.5 text-left">
-                      Absolument ! Mon CV est à jour. 🚀
+                      {t('landing.panel_reply')}
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 pt-2 border-t border-sky-100 flex gap-2">
-                <div className="flex-1 bg-sky-50 rounded-lg text-[11px] text-sky-400 p-2 border border-sky-200/60 font-medium">Écrire un message...</div>
+                <div className="flex-1 bg-sky-50 rounded-lg text-[11px] text-sky-400 p-2 border border-sky-200/60 font-medium">{t('landing.panel_placeholder')}</div>
                 <div className="w-8 h-8 bg-sky-50 text-sky-600 rounded-lg flex items-center justify-center"><Zap size={14} /></div>
               </div>
             </div>
@@ -174,9 +181,9 @@ export function LandingPage() {
                 <div className="p-1 bg-teal-500 rounded-md text-white">
                   <CheckCircle2 size={12} />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-teal-400">Match Idéal Détecté</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-teal-400">{t('landing.panel_badge')}</span>
               </div>
-              <p className="text-xs font-bold text-white">Score : 92% Rentabilité</p>
+              <p className="text-xs font-bold text-white">{t('landing.panel_score')}</p>
               <div className="w-full bg-white/10 h-1.5 rounded-full mt-2 overflow-hidden">
                 <div className="bg-gradient-to-r from-teal-400 to-teal-400 h-full w-[92%]" />
               </div>

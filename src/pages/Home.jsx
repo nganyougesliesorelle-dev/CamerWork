@@ -2,20 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { registerUser, loginWithMfa, resetPassword, signInWithGoogle } from '../firebase/authService';
-import { auth } from '../firebase/firebaseConfig';
+import { auth, db } from '../firebase/firebaseConfig';
 import { requestNotificationPermission } from '../firebase/notificationService'; 
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Mail, Info, CheckCircle, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader } from 'lucide-react';
 import { LanguageSwitcher } from '../composants/boutons';
+import { validateRegistrationPayload } from '../security/validationSchemas';
+import { filterSkills } from '../data/skills';
+import { shouldShowGoogleProfileSetup, shouldResumeProfileSetup } from '../utils/googleOnboarding';
 
-const Home = () => {
+const Home = ({ initialMode = 'login' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   
-  const [isLoginMode, setIsLoginMode] = useState(false);
+  const [isLoginMode, setIsLoginMode] = useState(initialMode === 'login');
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState('candidate');
+
+  useEffect(() => {
+    setIsLoginMode(initialMode === 'login');
+  }, [initialMode]);
   
   // États de base existants
   const [fullName, setFullName] = useState('');
@@ -40,13 +48,36 @@ const Home = () => {
   const [mfaCode, setMfaCode] = useState('');
   const [mfaResolver, setMfaResolver] = useState(null);
   const [mfaEmail, setMfaEmail] = useState('');
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [setupStep, setSetupStep] = useState(1);
+  const [profileBio, setProfileBio] = useState('');
+  const [profileSkills, setProfileSkills] = useState([]);
+  const [profileSkillInput, setProfileSkillInput] = useState('');
+  const [profileSkillSuggestions, setProfileSkillSuggestions] = useState([]);
+  const [cvReady, setCvReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && !loading) {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user || loading) return;
+
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        const userData = userSnap.exists() ? userSnap.data() : null;
+
+        if (userData && shouldResumeProfileSetup(userData)) {
+          setShowProfileSetup(true);
+          setSetupStep(1);
+          setIsWaitingVerification(false);
+          return;
+        }
+
         if (!user.emailVerified) {
           setIsWaitingVerification(true);
+        } else {
+          setIsWaitingVerification(false);
         }
+      } catch (error) {
+        console.error('Erreur lecture profil auth:', error);
       }
     });
     return () => unsubscribe();
@@ -69,9 +100,22 @@ const Home = () => {
       const user = auth.currentUser;
       
       if (user?.emailVerified) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userDocRef);
+        const userData = userSnap.exists() ? userSnap.data() : null;
+
+        if (userData && shouldResumeProfileSetup(userData)) {
+          setShowProfileSetup(true);
+          setSetupStep(1);
+          setIsWaitingVerification(false);
+          toast.success('Nous reprenons la configuration de votre profil.');
+          return;
+        }
+
         toast.success(t('notifications.success_verified'));
         setIsWaitingVerification(false);
-        if (role === 'recruiter') {
+        const targetRole = userData?.role || role;
+        if (targetRole === 'recruiter') {
           navigate('/DashboardRecruiter');
         } else {
           navigate('/offres');
@@ -112,6 +156,14 @@ const Home = () => {
     try {
       const result = await signInWithGoogle();
       if (result.success) {
+        const needsProfileSetup = shouldShowGoogleProfileSetup(result, result.userData);
+        if (needsProfileSetup) {
+          setShowProfileSetup(true);
+          setSetupStep(1);
+          toast.success('Bienvenue ! Complétez votre profil pour profiter de l’expérience CamerWork.');
+          setLoading(false);
+          return;
+        }
         toast.success(t('notifications.success_login', 'Connexion réussie !'));
         requestNotificationPermission(auth.currentUser.uid);
         if (result.role === 'recruiter') {
@@ -130,77 +182,92 @@ const Home = () => {
     }
   };
 
+  const handleProfileSetupSave = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userDocRef, {
+        role,
+        bio: profileBio.trim(),
+        skills: profileSkills,
+        cvReady,
+        onboardingCompleted: true,
+        setupPending: false,
+        updatedAt: serverTimestamp(),
+      });
+      setShowProfileSetup(false);
+      setSetupStep(1);
+      toast.success('Profil complété. Vous pouvez maintenant commencer.');
+      navigate(role === 'recruiter' ? '/DashboardRecruiter' : '/offres');
+    } catch (error) {
+      console.error('Erreur onboarding:', error);
+      toast.error('Impossible de finaliser votre profil pour l’instant.');
+    }
+  };
+
+  const addProfileSkill = () => {
+    const skill = profileSkillInput.trim();
+    if (!skill) return;
+    const validSkill = filterSkills(skill, 1)[0] || skill;
+    if (!profileSkills.includes(validSkill)) {
+      setProfileSkills(prev => [...prev, validSkill]);
+    }
+    setProfileSkillInput('');
+    setProfileSkillSuggestions([]);
+  };
+
+  const addSuggestedProfileSkill = (skill) => {
+    if (!skill || profileSkills.includes(skill)) return;
+    setProfileSkills(prev => [...prev, skill]);
+  };
+
+  const handleProfileSkillInput = (value) => {
+    setProfileSkillInput(value);
+    setProfileSkillSuggestions(filterSkills(value, 8));
+  };
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const resumeSetup = async () => {
+      try {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await doc(db, 'users', auth.currentUser.uid).get();
+        const currentUserData = userSnap.exists ? userSnap.data() : null;
+        if (currentUserData && shouldResumeProfileSetup(currentUserData)) {
+          setShowProfileSetup(true);
+          setSetupStep(1);
+        }
+      } catch (error) {
+        console.error('Erreur reprise onboarding:', error);
+      }
+    };
+
+    resumeSetup();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!isLoginMode && !agreeTerms) {
-      toast.error(t('notifications.error_terms'));
-      return;
-    }
-    if (!isLoginMode && fullName.length < 2) {
-      toast.error(t('notifications.error_valid_name'));
-      return;
-    }
-    if (password.length < 6) {
-      toast.error(t('notifications.error_password_short'));
-      return;
-    }
 
-    // Validation téléphone camerounais
-    if (!isLoginMode && role === 'candidate' && phone.trim()) {
-      let clean = phone.trim().replace(/[\s-]/g, '');
-      if (clean.startsWith('+237')) clean = clean.slice(4);
-      else if (clean.startsWith('00237')) clean = clean.slice(5);
-      else if (clean.length === 12 && clean.startsWith('237')) clean = clean.slice(3);
-
-      if (!/^[26]\d{8}$/.test(clean)) {
-        toast.error('Numéro de téléphone invalide. Format attendu : 9 chiffres, commençant par 6 (mobile) ou 2 (fixe).');
-        return;
-      }
-    }
-
-    // Validation email professionnel pour les recruteurs
-    if (!isLoginMode && role === 'recruiter' && isFreeEmailProvider(email.trim())) {
-      toast.error(t('notifications.error_recruiter_free_email'));
-      return;
-    }
-
-    // Validation date de naissance
-    if (!isLoginMode && role === 'candidate' && birthDate) {
-      const birth = new Date(birthDate);
-      const today = new Date();
-      
-      if (birth > today) {
-        toast.error('La date de naissance ne peut pas être dans le futur.');
-        return;
-      }
-
-      let age = today.getFullYear() - birth.getFullYear();
-      const m = today.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-      
-      if (age < 18) {
-        toast.error('Vous devez avoir au moins 18 ans pour créer un compte.');
-        return;
-      }
-      
-      if (age > 100) {
-        toast.error('La date de naissance est invalide (âge supérieur à 100 ans).');
-        return;
-      }
-    }
-
-    setLoading(true);
-
-    try {
-      const cleanEmail = email.trim();
-
-      if (isLoginMode) {
+    if (isLoginMode) {
+      setLoading(true);
+      try {
+        const cleanEmail = email.trim();
         const result = await loginWithMfa(cleanEmail, password);
         if (result.success) {
           if (!auth.currentUser.emailVerified) {
             toast.info(t('notifications.verify_email_first'));
             setIsWaitingVerification(true);
+            setLoading(false);
+            return;
+          }
+
+          const userSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          const userData = userSnap.exists() ? userSnap.data() : null;
+          if (userData && shouldResumeProfileSetup(userData)) {
+            setShowProfileSetup(true);
+            setSetupStep(1);
+            toast.success('Nous reprenons la configuration de votre profil.');
             setLoading(false);
             return;
           }
@@ -213,7 +280,6 @@ const Home = () => {
             navigate('/offres');
           }
         } else if (result.mfaRequired) {
-          // MFA requis — afficher l'écran de saisie du code
           setMfaRequired(true);
           setMfaResolver(result.mfaResolver);
           setMfaEmail(cleanEmail);
@@ -222,6 +288,42 @@ const Home = () => {
         } else {
           toast.error(result.error || t('notifications.error_login'));
         }
+      } catch (err) {
+        console.error('Erreur complète :', err);
+        toast.error(err.message || 'Un problème technique est survenu.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const validation = await validateRegistrationPayload({
+      fullName,
+      email,
+      password,
+      role,
+      phone,
+      birthDate,
+      agreeTerms,
+    });
+
+    if (!validation.valid) {
+      toast.error(validation.errors[0]);
+      return;
+    }
+
+    if (role === 'recruiter' && isFreeEmailProvider(email.trim())) {
+      toast.error(t('notifications.error_recruiter_free_email'));
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const cleanEmail = email.trim();
+
+      if (isLoginMode) {
+        // already handled above
       } else {
         const result = await registerUser(cleanEmail, password, role, fullName, {
           username, gender, birthDate, country, phone,
@@ -258,6 +360,15 @@ const Home = () => {
     try {
       const result = await loginWithMfa(mfaEmail, '', mfaCode, mfaResolver);
       if (result.success) {
+        const userSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        const userData = userSnap.exists() ? userSnap.data() : null;
+        if (userData && shouldResumeProfileSetup(userData)) {
+          setShowProfileSetup(true);
+          setSetupStep(1);
+          toast.success('Nous reprenons la configuration de votre profil.');
+          setLoading(false);
+          return;
+        }
         toast.success(t('notifications.success_login'));
         requestNotificationPermission(auth.currentUser.uid);
         if (result.role === 'recruiter') navigate('/DashboardRecruiter');
@@ -373,6 +484,134 @@ const Home = () => {
     );
   }
 
+  if (showProfileSetup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-900 via-[#0a4a6e] to-cyan-950 flex items-center justify-center p-4 md:p-8 font-sans selection:bg-cyan-500/20 text-white relative overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-cyan-400/8 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-2xl mx-auto space-y-6 relative z-10">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+              <CheckCircle size={14} />
+              Étape {setupStep} / 2
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-sky-100">Complétez votre profil</h1>
+            <p className="text-sm text-sky-300">Quelques informations pour vous proposer des offres plus pertinentes.</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-cyan-950/30 backdrop-blur-sm">
+            {setupStep === 1 ? (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-sky-200">Présentez-vous</label>
+                  <textarea
+                    rows={4}
+                    value={profileBio}
+                    onChange={(e) => setProfileBio(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#075985] px-4 py-3 text-sm text-sky-100 outline-none focus:border-cyan-500"
+                    placeholder="Décrivez votre profil, votre expérience ou vos objectifs."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-sky-200">Ajoutez vos compétences</label>
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    <input
+                      value={profileSkillInput}
+                      onChange={(e) => handleProfileSkillInput(e.target.value)}
+                      className="flex-1 rounded-2xl border border-white/10 bg-[#075985] px-4 py-3 text-sm text-sky-100 outline-none focus:border-cyan-500"
+                      placeholder="Ex. React, Design, Comptabilité"
+                    />
+                    <button
+                      type="button"
+                      onClick={addProfileSkill}
+                      className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-[#0c4a6e] transition hover:bg-cyan-400"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+
+                  {profileSkillSuggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {profileSkillSuggestions.map((skill) => (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => addSuggestedProfileSkill(skill)}
+                          className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-200 transition hover:bg-cyan-500/20"
+                        >
+                          {skill}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {profileSkills.map((skill) => (
+                      <span key={skill} className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-sky-100">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#075985]/60 px-4 py-3 text-sm text-sky-200">
+                  <input
+                    type="checkbox"
+                    checked={cvReady}
+                    onChange={(e) => setCvReady(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-transparent accent-cyan-500"
+                  />
+                  Je souhaite être contacté avec mon CV prêt à partager.
+                </label>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSetupStep(2)}
+                    className="rounded-2xl bg-[#fca311] px-5 py-3 text-sm font-semibold text-[#0c4a6e] transition hover:bg-[#e5940e]"
+                  >
+                    Continuer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-white/10 bg-[#075985]/60 p-4 text-sm text-sky-100">
+                  <p className="font-semibold text-cyan-300">Résumé du profil</p>
+                  <div className="mt-3 space-y-2 text-sm text-sky-200">
+                    <p><span className="text-sky-400">Rôle :</span> {role === 'recruiter' ? 'Recruteur' : 'Candidat'}</p>
+                    <p><span className="text-sky-400">Bio :</span> {profileBio.trim() || 'Non renseignée'}</p>
+                    <p><span className="text-sky-400">Compétences :</span> {profileSkills.length > 0 ? profileSkills.join(', ') : 'Aucune pour l’instant'}</p>
+                    <p><span className="text-sky-400">CV prêt :</span> {cvReady ? 'Oui' : 'Plus tard'}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setSetupStep(1)}
+                    className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-sky-200 transition hover:bg-white/10"
+                  >
+                    Retour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProfileSetupSave}
+                    className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-[#0c4a6e] transition hover:bg-cyan-400"
+                  >
+                    Terminer l’inscription
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-900 via-[#0a4a6e] to-cyan-950 flex items-center justify-center p-4 md:p-8 font-sans selection:bg-cyan-500/20 text-white relative overflow-hidden">
       
@@ -422,6 +661,23 @@ const Home = () => {
           <p className="text-xs text-sky-400 font-medium">
             {isLoginMode ? t('auth.welcome_back') : t('auth.fill_info')}
           </p>
+        </div>
+
+        <div className="grid grid-cols-2 p-1 bg-[#075985] rounded-xl border border-white/5">
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${isLoginMode ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
+          >
+            {t('auth.connexion', 'Connexion')}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/signup')}
+            className={`py-2.5 rounded-lg text-xs font-bold uppercase transition-all tracking-wider ${!isLoginMode ? 'bg-cyan-500 text-[#0c4a6e] shadow-md' : 'text-sky-400 hover:text-white'}`}
+          >
+            {t('auth.creer_compte', 'Créer un compte')}
+          </button>
         </div>
 
         {/* SÉLECTEUR DE RÔLE (Candidat vs Recruteur) - Visible uniquement à l'inscription */}
@@ -552,7 +808,7 @@ const Home = () => {
 
         {/* LIEN DE COMMUTATION INTERACTION INTERNE */}
         <div className="text-center pt-2">
-          <button onClick={() => setIsLoginMode(!isLoginMode)} className="text-cyan-500 font-bold hover:underline text-xs tracking-wide">
+          <button onClick={() => navigate(isLoginMode ? '/signup' : '/login')} className="text-cyan-500 font-bold hover:underline text-xs tracking-wide">
             {isLoginMode ? t('auth.nouveau') : t('auth.deja_compte')}
           </button>
         </div>

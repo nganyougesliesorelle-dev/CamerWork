@@ -27,23 +27,32 @@ const FAVORITES_COLLECTION = 'favorites';
  * @returns {Promise<{ saved: boolean, error?: string }>}
  */
 export async function toggleFavorite(userId, job) {
-  if (!userId || !job?.id) {
+  if (!job?.id) {
     return { saved: false, error: 'Données manquantes.' };
   }
 
   try {
-    const favId = `${userId}_${job.id}`;
+    const uid = auth.currentUser?.uid || userId || null;
+    if (!uid) return { saved: false, error: 'Utilisateur non authentifié.' };
+    const favId = `${uid}_${job.id}`;
     const favRef = doc(db, FAVORITES_COLLECTION, favId);
-    const favSnap = await getDoc(favRef);
+    try { console.debug('[favoritesService] toggle start', { favId, uid, dbProject: db?.app?.options?.projectId || db?._databaseId?.projectId || null }); } catch (_) {}
 
-    if (favSnap.exists()) {
-      // Déjà en favori → retirer
-      await deleteDoc(favRef);
+    const existingQuery = query(
+      collection(db, FAVORITES_COLLECTION),
+      where('userId', '==', uid),
+      where('jobId', '==', job.id)
+    );
+    const snapshot = await getDocs(existingQuery);
+
+    if (!snapshot.empty) {
+      // Déjà en favori → retirer le premier document trouvé
+      await deleteDoc(doc(db, FAVORITES_COLLECTION, snapshot.docs[0].id));
       return { saved: false };
     } else {
       // Ajouter aux favoris
-      await setDoc(favRef, {
-        userId,
+      const payload = {
+        userId: uid,
         jobId: job.id,
         title: job.title || '',
         company: job.company || '',
@@ -51,12 +60,15 @@ export async function toggleFavorite(userId, job) {
         type: job.type || 'CDI',
         salary: job.salary || '',
         savedAt: serverTimestamp(),
-      });
+      };
+      // Diagnostic logging
+      try { console.debug('[favoritesService] setDoc payload:', payload, 'favId=', favId, 'auth.uid=', auth.currentUser?.uid); } catch (_) {}
+      await setDoc(favRef, payload);
       return { saved: true };
     }
-  } catch (error) {
-    console.error('Erreur favori:', error);
-    return { saved: false, error: error.message };
+    } catch (error) {
+    try { console.error('Erreur favori:', error.code || error.message || error); } catch (_) {}
+    return { saved: false, error: error.message || String(error), code: error.code || null };
   }
 }
 

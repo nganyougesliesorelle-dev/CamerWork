@@ -1,0 +1,299 @@
+[
+  {
+    "category": "Web Development",
+    "skills": [
+      "HTML",
+      "CSS",
+      "Sass",
+      "Tailwind CSS",
+      "Bootstrap",
+      "JavaScript",
+      "TypeScript",
+      "jQuery",
+      "React",
+      "Next.js",
+      "Vue.js",
+      "Nuxt.js",
+      "Angular",
+      "Node.js",
+      "Express.js",
+      "NestJS",
+      "PHP",
+      "Laravel",
+      "Symfony",
+      "CodeIgniter",
+      "Python",
+      "Django",
+      "Flask",
+      "FastAPI",
+      "Ruby on Rails",
+      "ASP.NET Core",
+      "Blazor",
+      "WordPress",
+      "Shopify",
+      "Wix",
+      "Webflow"
+    ]
+  },
+  {
+    "category": "Mobile Development",
+    "skills": [
+      "React Native",
+      "Flutter",
+      "Ionic",
+      "Android (Java)",
+      "Android (Kotlin)",
+      "iOS (Swift)",
+      "SwiftUI",
+      "Xamarin",
+      "Firebase Mobile",
+      "Mobile UI Design"
+    ]
+  },
+  {
+    "category": "Backend & APIs",
+    "skills": [
+      "REST API",
+      "GraphQL",
+      "gRPC",
+      "Microservices",
+      "Monolithic Architecture",
+      "Authentication (JWT, OAuth2)",
+      "API Gateway",
+      "Rate Limiting",
+      "WebSockets",
+      "Real-time Services"
+    ]
+  },
+  {
+    "category": "Databases",
+    "skills": [
+      "MySQL",
+      "PostgreSQL",
+      "SQLite",
+      "SQL Server",
+      "Oracle",
+      "MariaDB",
+      "MongoDB",
+      "CouchDB",
+      "DynamoDB",
+      "Redis",
+      "ElasticSearch",
+      "Firestore",
+      "Database Design",
+      "Query Optimization"
+    ]
+  },
+  {
+    "category": "Cloud & DevOps",
+    "skills": [
+      "Docker",
+      "Docker Compose",
+      "Kubernetes",
+      "CI/CD",
+      "GitHub Actions",
+      "GitLab CI",
+      "Jenkins",
+      "AWS",
+      "Azure",
+      "Google Cloud Platform",
+      "Vercel",
+      "Netlify",
+      "DigitalOcean",
+      "Linux Server Administration",
+      "Nginx",
+      "Apache",
+      "Terraform",
+      "Ansible",
+      "Monitoring (Prometheus, Grafana)"
+    ]
+  },
+  {
+    "category": "Version Control & Collaboration",
+    "skills": [
+      "Git",
+      "GitHub",
+      "GitLab",
+      "Bitbucket",
+      "Code Review",
+      "Branching Strategies",
+      "Agile (Scrum, Kanban)",
+      "Issue Tracking (Jira, Trello)"
+    ]
+  },
+  {
+    "category": "Data, AI & Machine Learning",
+    "skills": [
+      "Python Data (NumPy, Pandas)",
+      "Scikit-learn",
+      "TensorFlow",
+      "PyTorch",
+      "Computer Vision",
+      "Natural Language Processing",
+      "Data Visualization (Matplotlib, Seaborn, Plotly)",
+      "SQL for Analytics",
+      "BI Tools (Power BI, Tableau)",
+      "Data Cleaning",
+      "Feature Engineering"
+    ]
+  },
+  {
+    "category": "Automation & Scripting",
+    "skills": [
+      "Shell Scripting (Bash)",
+      "PowerShell",
+      "Automation with Python",
+      "Web Scraping (BeautifulSoup, Selenium)",
+      "RPA Tools (UiPath, Automation Anywhere)",
+      "Task Scheduling (Cron)",
+      "ETL Pipelines"
+    ]
+  },
+  {
+    "category": "Cybersecurity",
+    "skills": [
+      "Network Security",
+      "Web Application Security",
+      "Penetration Testing Basics",
+      "OWASP Top 10",
+      "Encryption",
+      "Identity & Access Management",
+      "Security Auditing",
+      "Secure Coding Practices"
+    ]
+  },
+  {
+    "category": "Design & Creative",
+    "skills": [
+      "Graphic Design",
+      "Brand Identity",
+      "Logo Design",
+      "UI Design",
+      "UX Design",
+      "Design Systems",
+      "Wireframing",
+      "Prototyping",
+      "Adobe Photoshop",
+      "Adobe Illustrator",
+      "Adobe XD",
+      "Figma",
+      "Sketch",
+      "CorelDRAW"
+    ]
+  },
+  {
+    "category": "Video Production & Motion",
+    "skills": [
+      "Video Editing",
+      "Color Grading",
+      "Video Encoding",
+      "Motion Design",
+      "2D Animation",
+      "3D Animation",
+      "Visual Effects (VFX)",
+      "Compositing",
+      "Adobe Premiere Pro",
+      "Adobe After Effects",
+      "DaVinci Resolve",
+      "Final Cut Pro",
+      "Blender",
+      "Cinema 4D",
+      "Maya",
+      "Storyboard",
+      "Scriptwriting for Video",
+      "Audio Sync",
+      "Subtitle Creation",
+      "Social Media Video Formats"
+    ]
+  },
+  {
+    "category": "3D, Game & Interactive",
+    "skills": [
+      "3D Modeling",
+      "Texturing",
+      "Rigging",
+      "Lighting",
+      "Rendering",
+      "Game Design Basics",
+      "Unity",
+      "Unreal Engine",
+      "Level Design",
+      "Shader Programming",
+      "Physics Simulation",
+      "Animation Blueprints"
+    ]
+  },
+  {
+    "category": "Audio & Music",
+    "skills": [
+      "Audio Editing",
+      "Sound Design",
+      "Mixing",
+      "Mastering",
+      "Podcast Production",
+      "Voice-over Editing",
+      "Music Production (DAW: FL Studio, Ableton, Logic Pro)",
+      "Noise Reduction",
+      "Audio Restoration"
+    ]
+  },
+  {
+    "category": "Digital Marketing & SEO",
+    "skills": [
+      "SEO On-page",
+      "SEO Off-page",
+      "Technical SEO",
+      "Keyword Research",
+      "Google Search Console",
+      "Google Analytics",
+      "Content Marketing",
+      "Blog Writing",
+      "Copywriting",
+      "Social Media Management",
+      "Facebook Ads",
+      "Instagram Ads",
+      "TikTok Ads",
+      "Google Ads",
+      "Email Marketing",
+      "Marketing Automation Tools",
+      "Landing Page Optimization",
+      "A/B Testing"
+    ]
+  },
+  {
+    "category": "E-commerce & CMS",
+    "skills": [
+      "Shopify Store Setup",
+      "WooCommerce",
+      "PrestaShop",
+      "Magento",
+      "E-commerce Analytics",
+      "Payment Gateway Integration",
+      "Product Listing Optimization"
+    ]
+  },
+  {
+    "category": "No-code & Low-code",
+    "skills": [
+      "Bubble",
+      "Adalo",
+      "Glide",
+      "Zapier",
+      "Make (Integromat)",
+      "Airtable",
+      "Notion Systems",
+      "Webflow CMS",
+      "Wix Editor X"
+    ]
+  },
+  {
+    "category": "Project & Product",
+    "skills": [
+      "Project Management Tools (Jira, Trello, Asana)",
+      "Roadmapping",
+      "User Story Writing",
+      "Requirements Gathering",
+      "Documentation (Confluence, Notion)"
+    ]
+  }
+]

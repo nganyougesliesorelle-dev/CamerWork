@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db, auth } from '../firebase/firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { MessageCircle, ArrowLeft, User, Clock, ChevronRight } from 'lucide-react';
 import { AnimatedPage } from '../composants/AnimatedPage';
@@ -13,6 +13,7 @@ export function MessagesList() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
+  const [unreadMap, setUnreadMap] = useState({});
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -57,6 +58,63 @@ export function MessagesList() {
 
     return () => unsub();
   }, [navigate]);
+
+  // Écoute du nombre de messages non lus par conversation via la collection `notifications`
+  useEffect(() => {
+    if (!userId || conversations.length === 0) {
+      setUnreadMap({});
+      return;
+    }
+
+    const unsubs = [];
+    conversations.forEach((conv) => {
+      try {
+        const q = query(
+          collection(db, 'notifications'),
+          where('userId', '==', userId),
+          where('type', '==', 'message'),
+          where('read', '==', false),
+          where('chatId', '==', conv.id)
+        );
+        const unsub = onSnapshot(q, (snap) => {
+          setUnreadMap((prev) => ({ ...prev, [conv.id]: snap.size || 0 }));
+        }, (err) => {
+          console.error('Erreur unread notif for conv', conv.id, err);
+          setUnreadMap((prev) => ({ ...prev, [conv.id]: 0 }));
+        });
+        unsubs.push(unsub);
+      } catch (e) {
+        console.error('subscribe unread failed', e);
+      }
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [conversations, userId]);
+
+  // Marque les notifications non lues de la conversation comme lues, puis navigue
+  const handleOpenConversation = async (convId) => {
+    try {
+      if (!userId) { navigate(`/chat/${convId}`); return; }
+      const notifQ = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        where('type', '==', 'message'),
+        where('chatId', '==', convId),
+        where('read', '==', false)
+      );
+      const snap = await getDocs(notifQ);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+        await batch.commit();
+        setUnreadMap((prev) => ({ ...prev, [convId]: 0 }));
+      }
+    } catch (err) {
+      console.error('Erreur en marquant notifications lues avant navigation:', err);
+    } finally {
+      navigate(`/chat/${convId}`);
+    }
+  };
 
   const formatTime = (ts) => {
     if (!ts?.toDate) return '';
@@ -128,7 +186,7 @@ export function MessagesList() {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => navigate(`/chat/${conv.id}`)}
+                  onClick={() => handleOpenConversation(conv.id)}
                   className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-sky-100 dark:border-gray-700 hover:border-cyan-300 hover:shadow-md transition-all cursor-pointer flex items-center gap-4 group"
                 >
                   {/* Avatar */}
@@ -156,6 +214,11 @@ export function MessagesList() {
                     </p>
                   </div>
 
+                  {unreadMap[conv.id] > 0 && (
+                    <span className="min-w-[1.5rem] h-6 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center px-2 mr-2">
+                      {unreadMap[conv.id] > 9 ? '9+' : unreadMap[conv.id]}
+                    </span>
+                  )}
                   <ChevronRight size={16} className="text-sky-300 dark:text-gray-600 shrink-0 group-hover:text-cyan-500 transition-colors" />
                 </div>
               );

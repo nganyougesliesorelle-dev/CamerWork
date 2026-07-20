@@ -34,24 +34,33 @@ export function FavoriteButton({ job, userId, role, size = 'md', showTooltip = t
   const handleToggle = async (e) => {
     e.stopPropagation(); // Ne pas propager au clic de la carte
     if (loading || !userId) return;
+    if (!userId) {
+      toast.error('Veuillez vous connecter pour sauvegarder des offres.');
+      return;
+    }
 
     setLoading(true);
     setAnimating(true);
 
-    const result = await toggleFavorite(userId, job);
-
-    if (result.error) {
-      toast.error('Erreur lors de la sauvegarde.');
-    } else {
-      setSaved(result.saved);
-      if (result.saved) {
-        toast.success('Offre sauvegardée dans vos favoris !', { icon: '❤️' });
+    try {
+      const result = await toggleFavorite(userId, job);
+      console.debug('[FavoriteButton] toggle result:', result);
+      if (result.error) {
+        toast.error(`Erreur lors de l'enregistrement: ${result.error}`);
+      } else {
+        setSaved(result.saved);
+        if (result.saved) {
+          toast.success('Offre sauvegardée dans vos favoris !', { icon: '❤️' });
+        }
+        onToggle?.(result.saved);
       }
-      onToggle?.(result.saved);
+    } catch (err) {
+      console.error('[FavoriteButton] unexpected error:', err);
+      toast.error('Erreur inattendue lors de l’action.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setAnimating(false), 400);
     }
-
-    setLoading(false);
-    setTimeout(() => setAnimating(false), 400);
   };
 
   const sizes = {

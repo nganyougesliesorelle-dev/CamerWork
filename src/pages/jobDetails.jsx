@@ -3,8 +3,9 @@ import { ArrowLeft, MapPin, Calendar, Building, CheckCircle, XCircle, DollarSign
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase/firebaseConfig';
+import { db, auth, storage } from '../firebase/firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; 
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // Import de la fonction de service que nous avons centralisée
 import { applyToJob, cancelApplication } from '../firebase/authService'; 
@@ -28,6 +29,12 @@ export function JobDetails() {
   const [loading, setLoading] = useState(true);
   const [hasApplied, setHasApplied] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [message, setMessage] = useState('');
+  const [cvFile, setCvFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [availableCvs, setAvailableCvs] = useState([]);
+  const [selectedCvId, setSelectedCvId] = useState('');
   
   // États pour le module de coaching intelligent
   const [missingSkills, setMissingSkills] = useState([]);
@@ -52,6 +59,12 @@ export function JobDetails() {
             if (userSnap.exists()) {
               const userData = userSnap.data();
               setUserRole(userData.role);
+
+              const normalizedCvLibrary = Array.isArray(userData.cvLibrary) && userData.cvLibrary.length
+                ? userData.cvLibrary
+                : (userData.cvUrl ? [{ id: userData.cvId || `legacy-${userData.cvUrl}`, url: userData.cvUrl, name: userData.cvName || 'CV principal', label: userData.cvLabel || 'CV principal' }] : []);
+              setAvailableCvs(normalizedCvLibrary);
+              setSelectedCvId(userData.primaryCvId || normalizedCvLibrary[0]?.id || '');
               
               // --- LOGIQUE DU COACH : ANALYSE DES COMPÉTENCES ---
               if (userData.role !== 'recruiter' && jobData.profile) {
@@ -125,17 +138,46 @@ export function JobDetails() {
       return;
     }
 
+    if (!showApplicationForm) {
+      setShowApplicationForm(true);
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const result = await applyToJob(job, user);
+      let cvUrl = '';
+      let cvName = '';
+      let cvLabel = '';
+      let cvId = '';
+
+      const selectedCv = availableCvs.find((cv) => cv.id === selectedCvId);
+      if (selectedCv) {
+        cvUrl = selectedCv.url;
+        cvName = selectedCv.name || selectedCv.label || 'CV';
+        cvLabel = selectedCv.label || selectedCv.name || 'CV';
+        cvId = selectedCv.id;
+      } else if (cvFile) {
+        const storageRef = ref(storage, `applications/${user.uid}/${Date.now()}_${cvFile.name}`);
+        const snapshot = await uploadBytes(storageRef, cvFile);
+        cvUrl = await getDownloadURL(snapshot.ref);
+        cvName = cvFile.name;
+        cvLabel = cvFile.name;
+      }
+
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      const result = await applyToJob({ job, user, userData, message, cvUrl, cvName, cvLabel, cvId });
 
       if (result.success) {
         setHasApplied(true);
+        setShowApplicationForm(false);
+        setMessage('');
+        setCvFile(null);
         toast.success(t('notifications.success_application'), {
           description: `${t('common.at')} ${job?.company}`,
         });
 
-        const userSnap = await getDoc(doc(db, "users", user.uid));
-        const candidateName = userSnap.exists() ? userSnap.data().name : "Un candidat";
+        const candidateName = userData.displayName || userData.name || user.displayName || "Un candidat";
 
         if (job?.recruiterId) {
           await addDoc(collection(db, "notifications"), {
@@ -152,6 +194,8 @@ export function JobDetails() {
       }
     } catch (_error) {
       toast.error(t('common.error'), { description: t('jobs.application_error') });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -188,8 +232,14 @@ export function JobDetails() {
 
           {/* ── 1. ENTREPRISE ── */}
           <div className="flex items-center gap-3 sm:gap-4 mb-5 sm:mb-6 pr-10">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-sky-500 to-cyan-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-xl shrink-0 shadow-md shadow-sky-500/20">
-              {(job.company || '?').charAt(0).toUpperCase()}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl overflow-hidden shrink-0 shadow-md shadow-sky-500/20 bg-sky-500">
+              {job.companyLogoUrl ? (
+                <img src={job.companyLogoUrl} alt={`${job.company} logo`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white font-black text-lg sm:text-xl">
+                  {(job.company || '?').charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-lg sm:text-xl font-black text-sky-800 dark:text-gray-100 leading-tight truncate">
@@ -221,9 +271,13 @@ export function JobDetails() {
             <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-sky-500 dark:text-gray-300 bg-sky-50 dark:bg-gray-700 px-3 py-1 rounded-full">
               <MapPin size={13} /> {job.city}
             </span>
-            {job.salary && (
+            {(job.salary || job.salaryMin || job.salaryMax) && (
               <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-3 py-1 rounded-full">
-                <DollarSign size={13} /> {job.salary}
+                <DollarSign size={13} />
+                {job.salaryMin && job.salaryMax
+                  ? `${job.salaryMin.toLocaleString('fr-FR')} - ${job.salaryMax.toLocaleString('fr-FR')}`
+                  : job.salary?.toLocaleString('fr-FR') || job.salaryMin?.toLocaleString('fr-FR') || job.salaryMax?.toLocaleString('fr-FR')}
+                {' '}FCFA / {job.period || 'Mensuel'}
               </span>
             )}
             {job.isScraped && (
@@ -298,21 +352,65 @@ export function JobDetails() {
             <div>
                 <div className="bg-gradient-to-br from-sky-800 to-sky-950 dark:from-gray-800 dark:to-gray-900 rounded-[1rem] sm:rounded-[1.5rem] p-4 sm:p-6 text-white shadow-inner shadow-white/5">
                     <h2 className="text-[10px] sm:text-xs font-black text-sky-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <Sparkles size={14} className="text-cyan-400" /> {t('jobDetails.profile_required')}
+                      <Sparkles size={14} className="text-cyan-400" /> Compétence recherché
                     </h2>
                     <ul className="space-y-4">
-                        {job.profile?.map((p, i) => (
+                        {(() => {
+                          const reqSkills = (job.profile && job.profile.length > 0)
+                            ? job.profile
+                            : (job.skills || []);
+                          return reqSkills.map((p, i) => (
                             <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm font-medium">
-                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></div>
-                                <span className="text-sky-100 leading-relaxed">{p}</span>
+                              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></div>
+                              <span className="text-sky-100 leading-relaxed">{p}</span>
                             </li>
-                        ))}
+                          ));
+                        })()}
                     </ul>
                 </div>
             </div>
           </div>
         </div>
       </div>
+
+      {showApplicationForm && !hasApplied && (
+        <div className="fixed inset-x-0 bottom-24 sm:bottom-28 z-40 px-3 sm:px-4">
+          <div className="max-w-2xl mx-auto rounded-[1.25rem] border border-sky-100 bg-white/95 p-4 shadow-2xl backdrop-blur">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black text-sky-800">Postuler à cette offre</h3>
+              <button onClick={() => setShowApplicationForm(false)} className="text-xs font-bold text-sky-500">Fermer</button>
+            </div>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              placeholder="Présentez votre profil et votre motivation…"
+              className="w-full rounded-2xl border border-sky-100 bg-sky-50 p-3 text-sm text-sky-800 outline-none focus:border-cyan-500"
+            />
+            {availableCvs.length > 0 && (
+              <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 p-3">
+                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-500">CV à transmettre</label>
+                <select
+                  value={selectedCvId}
+                  onChange={(e) => setSelectedCvId(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm text-sky-800 outline-none focus:border-cyan-500"
+                >
+                  {availableCvs.map((cv) => (
+                    <option key={cv.id || cv.url} value={cv.id || cv.url}>
+                      {cv.label || cv.name || 'CV'}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-[11px] text-sky-500">Le CV sélectionné sera envoyé avec votre candidature.</p>
+              </div>
+            )}
+            <label className="mt-3 flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-700">
+              <span>{cvFile ? cvFile.name : 'Joindre un CV supplémentaire (optionnel)'}</span>
+              <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => setCvFile(e.target.files?.[0] || null)} />
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Floating Action Bar */}
       <div className="fixed bottom-2 sm:bottom-6 left-1/2 -translate-x-1/2 w-full max-w-full sm:max-w-lg px-2 sm:px-4 z-50">
