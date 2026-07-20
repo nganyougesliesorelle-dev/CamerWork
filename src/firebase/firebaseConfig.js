@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
 import { getMessaging, isSupported } from "firebase/messaging"; // Import de isSupported pour sécuriser le build
@@ -42,7 +42,14 @@ if (hasRequiredConfig) {
   auth = getAuth(app);
   setPersistence(auth, browserLocalPersistence)
     .catch((err) => {
-      console.warn('[Firebase] Impossible d’activer la persistance de session :', err);
+      console.warn('[Firebase] Impossible d’activer la persistance locale :', err);
+      return setPersistence(auth, indexedDBLocalPersistence)
+        .then(() => {
+          console.info('[Firebase] Persistance IndexedDB activée en fallback.');
+        })
+        .catch((err2) => {
+          console.warn('[Firebase] Impossible d’activer la persistance IndexedDB :', err2);
+        });
     });
 
   // Persistance IndexedDB activée dès la création de l'instance Firestore

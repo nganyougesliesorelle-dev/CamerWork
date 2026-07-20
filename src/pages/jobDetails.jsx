@@ -35,6 +35,21 @@ export function JobDetails() {
   const [submitting, setSubmitting] = useState(false);
   const [availableCvs, setAvailableCvs] = useState([]);
   const [selectedCvId, setSelectedCvId] = useState('');
+
+  const handleCvFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) {
+      setCvFile(null);
+      return;
+    }
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      toast.error('Merci de sélectionner un fichier PDF pour votre CV.');
+      setCvFile(null);
+      return;
+    }
+    setCvFile(file);
+  };
   
   // États pour le module de coaching intelligent
   const [missingSkills, setMissingSkills] = useState([]);
@@ -387,6 +402,11 @@ export function JobDetails() {
               placeholder="Présentez votre profil et votre motivation…"
               className="w-full rounded-2xl border border-sky-100 bg-sky-50 p-3 text-sm text-sky-800 outline-none focus:border-cyan-500"
             />
+            {availableCvs.length === 0 && !cvFile && (
+              <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 p-3 text-sm text-sky-700">
+                <p>Vous pouvez postuler sans CV. La photo de profil n’est pas requise pour cette candidature.</p>
+              </div>
+            )}
             {availableCvs.length > 0 && (
               <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 p-3">
                 <label className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-500">CV à transmettre</label>
@@ -405,8 +425,8 @@ export function JobDetails() {
               </div>
             )}
             <label className="mt-3 flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-700">
-              <span>{cvFile ? cvFile.name : 'Joindre un CV supplémentaire (optionnel)'}</span>
-              <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => setCvFile(e.target.files?.[0] || null)} />
+              <span>{cvFile ? cvFile.name : 'Joindre un CV PDF (optionnel)'}</span>
+              <input type="file" accept=".pdf" className="hidden" onChange={handleCvFileChange} />
             </label>
           </div>
         </div>

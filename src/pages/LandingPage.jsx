@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles, CheckCircle2, MessageSquare, Briefcase, Zap, Mail
 import { signInWithGoogle } from '../firebase/authService';
 import { requestNotificationPermission } from '../firebase/notificationService';
 import { auth } from '../firebase/firebaseConfig';
+import { shouldShowGoogleProfileSetup } from '../utils/googleOnboarding';
 import { toast } from 'sonner';
 import { useLang } from '../composants/LangContext';
 import { LanguageSwitcher } from '../composants/boutons';
@@ -20,8 +21,13 @@ export function LandingPage() {
     try {
       const result = await signInWithGoogle();
       if (result.success) {
+        const needsProfileSetup = shouldShowGoogleProfileSetup(result, result.userData);
+        if (needsProfileSetup) {
+          toast.success('Bienvenue ! Complétez votre profil pour profiter de l’expérience CamerWork.');
+          navigate('/login');
+          return;
+        }
         toast.success(t('notifications.success_login', 'Connexion réussie !'));
-        requestNotificationPermission(auth?.currentUser?.uid);
         if (result.role === 'recruiter') {
           navigate('/DashboardRecruiter');
         } else {

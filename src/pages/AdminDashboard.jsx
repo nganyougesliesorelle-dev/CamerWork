@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase/firebaseConfig';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, orderBy, startAfter, limit } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
   ShieldCheck, ShieldAlert, Shield, Search, CheckCircle2, XCircle, Eye, ExternalLink,
   Building2, Mail, Hash, Clock, ArrowLeft, Users, Filter, RefreshCw, ChevronDown,
-  BadgeCheck, FileSearch, AlertTriangle, UserCheck, Star
+  BadgeCheck, FileSearch, AlertTriangle, UserCheck, Star, Edit3, Trash2, PlusSquare
 } from 'lucide-react';
 import { AnimatedPage } from '../composants/AnimatedPage';
+
+/*
+  Firestore composite index required for the admin recruiters query:
+  - collection: users
+  - fields: role (ASC), createdAt (DESC)
+
+  If you hit the runtime error "The query requires an index" follow the console link
+  shown in the error to create the index, or deploy indexes from this repo with:
+
+    firebase deploy --only firestore:indexes
+
+  The file `firestore.indexes.json` already contains the required index entry.
+*/
 
 // Vérifie si l'email utilise un fournisseur gratuit
 const isFreeEmailProvider = (email) => {
@@ -29,17 +42,63 @@ const isFreeEmailProvider = (email) => {
   return freeDomains.includes(domain);
 };
 
+const SORT_OPTIONS = [
+  { value: 'latest', label: 'Date récente' },
+  { value: 'oldest', label: 'Date ancienne' },
+  { value: 'company', label: 'Entreprise A-Z' },
+  { value: 'priority', label: 'Priorité et en attente' },
+];
+
+const pageSize = 12;
+
+const sortRecruiters = (list, option) => {
+  if (!list?.length) return [];
+  const sorted = [...list];
+
+  switch (option) {
+    case 'oldest':
+      return sorted.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    case 'company':
+      return sorted.sort((a, b) => (a.company || a.displayName || '').localeCompare(b.company || b.displayName || ''));
+    case 'priority':
+      return sorted.sort((a, b) => {
+        const prioA = a.validationPriority === 'high' ? 0 : 1;
+        const prioB = b.validationPriority === 'high' ? 0 : 1;
+        if (prioA !== prioB) return prioA - prioB;
+        if (a.isValidated !== b.isValidated) return a.isValidated ? 1 : -1;
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      });
+    default:
+      return sorted.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  }
+};
+
 const AdminDashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [recruiters, setRecruiters] = useState([]);
+  const [jobsCount, setJobsCount] = useState(0);
+  const [reports, setReports] = useState([]);
+  const [reportsCount, setReportsCount] = useState(0);
+  const [showReportsModal, setShowReportsModal] = useState(false);
   const [filteredRecruiters, setFilteredRecruiters] = useState([]);
+  // Jobs management (admin CRUD)
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobModalOpen, setJobModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState(null);
+  const [jobForm, setJobForm] = useState({ title: '', company: '', description: '', location: '', isPublished: false });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortOption, setSortOption] = useState('latest');
+  const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [updating, setUpdating] = useState(null);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -58,43 +117,174 @@ const AdminDashboard = () => {
       }
 
       fetchRecruiters();
+      fetchJobs();
+      fetchCounts();
     });
 
     return () => unsubscribe();
   }, []);
 
-  const fetchRecruiters = async () => {
-    setLoading(true);
+  const fetchRecruiters = async (reset = true) => {
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
+
     try {
-      const q = query(
+      let q = query(
         collection(db, 'users'),
-        where('role', 'in', ['recruiter', 'recruteur'])
+        where('role', 'in', ['recruiter', 'recruteur']),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize)
       );
+      if (!reset && lastVisibleDoc) {
+        q = query(q, startAfter(lastVisibleDoc));
+      }
+
       const snapshot = await getDocs(q);
       const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      // Trier : non validés d'abord, puis par date de création
-      list.sort((a, b) => {
-        if (a.isValidated !== b.isValidated) return a.isValidated ? 1 : -1;
-        // Priorité haute d'abord
-        const prioA = a.validationPriority === 'high' ? 0 : 1;
-        const prioB = b.validationPriority === 'high' ? 0 : 1;
-        if (prioA !== prioB) return prioA - prioB;
-        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
-      });
-      setRecruiters(list);
-      applyFilters(list, searchQuery, statusFilter);
+      const newRecruiters = reset ? list : [...recruiters, ...list];
+      setRecruiters(newRecruiters);
+      setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(snapshot.size === pageSize);
+      applyFilters(newRecruiters, searchQuery, statusFilter, sortOption);
     } catch (err) {
       console.error('Erreur chargement recruteurs:', err);
-      toast.error('Impossible de charger la liste des recruteurs.');
+      // Firestore may require a composite index for an 'in' + 'orderBy' query.
+      // If that's the case, fallback to a client-side filter (less efficient but avoids breaking the UI).
+      const msg = String(err?.message || err);
+      if (msg.includes('requires an index') || msg.includes('index')) {
+        try {
+          const snap = await getDocs(collection(db, 'users'));
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const recruitersOnly = list.filter(u => ['recruiter', 'recruteur'].includes(u.role));
+          // sort by createdAt desc if present
+          recruitersOnly.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          setRecruiters(recruitersOnly);
+          applyFilters(recruitersOnly, searchQuery, statusFilter, sortOption);
+          toast.warning("Chargement via fallback local — pensez à créer l'index Firestore recommandé.");
+        } catch (fallbackErr) {
+          console.error('Fallback fetch failed:', fallbackErr);
+          toast.error('Impossible de charger la liste des recruteurs.');
+        }
+      } else {
+        toast.error('Impossible de charger la liste des recruteurs.');
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
-  const applyFilters = (list, search, status) => {
+  // Fetch counts for jobs and pending reports
+  const fetchCounts = async () => {
+    try {
+      try {
+        const jobsSnap = await getDocs(collection(db, 'jobs'));
+        setJobsCount(jobsSnap.size || 0);
+      } catch (e) {
+        console.debug('jobs count fetch failed', e);
+        setJobsCount(0);
+      }
+
+      try {
+        const reportsQ = query(collection(db, 'reports'), where('status', '==', 'pending'));
+        const reportsSnap = await getDocs(reportsQ);
+        const rDocs = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setReportsCount(reportsSnap.size || 0);
+        setReports(rDocs.slice(0, 10));
+      } catch (e) {
+        console.debug('reports fetch failed', e);
+        setReportsCount(0);
+        setReports([]);
+      }
+    } catch (err) {
+      console.warn('fetchCounts error', err);
+    }
+  };
+
+  // Jobs CRUD
+  const fetchJobs = async () => {
+    setJobsLoading(true);
+    try {
+      const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'), limit(200));
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setJobs(list);
+      setJobsCount(snap.size || list.length || 0);
+    } catch (err) {
+      console.error('fetchJobs error', err);
+      toast.error('Impossible de récupérer les offres.');
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  const openCreateJob = () => {
+    setEditingJob(null);
+    setJobForm({ title: '', company: '', description: '', location: '', isPublished: false });
+    setJobModalOpen(true);
+  };
+
+  const openEditJob = (job) => {
+    setEditingJob(job.id);
+    setJobForm({ title: job.title || '', company: job.company || '', description: job.description || '', location: job.location || '', isPublished: !!job.isPublished });
+    setJobModalOpen(true);
+  };
+
+  const saveJob = async () => {
+    try {
+      if (editingJob) {
+        await updateDoc(doc(db, 'jobs', editingJob), {
+          ...jobForm,
+          updatedAt: serverTimestamp(),
+        });
+        toast.success('Offre mise à jour.');
+      } else {
+        await addDoc(collection(db, 'jobs'), {
+          ...jobForm,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        toast.success('Offre créée.');
+      }
+      setJobModalOpen(false);
+      fetchJobs();
+    } catch (err) {
+      console.error('saveJob error', err);
+      toast.error('Impossible d\'enregistrer l\'offre.');
+    }
+  };
+
+  const removeJob = async (jobId) => {
+    if (!confirm('Supprimer définitivement cette offre ?')) return;
+    try {
+      await deleteDoc(doc(db, 'jobs', jobId));
+      toast.success('Offre supprimée.');
+      fetchJobs();
+    } catch (err) {
+      console.error('removeJob error', err);
+      toast.error('Impossible de supprimer l\'offre.');
+    }
+  };
+
+  const togglePublish = async (job) => {
+    try {
+      await updateDoc(doc(db, 'jobs', job.id), { isPublished: !job.isPublished, updatedAt: serverTimestamp() });
+      fetchJobs();
+      toast.success(`Offre ${job.isPublished ? 'dépubliée' : 'publiée'}.`);
+    } catch (err) {
+      console.error('togglePublish error', err);
+      toast.error('Impossible de mettre à jour le statut de publication.');
+    }
+  };
+
+  React.useEffect(() => {
+    applyFilters(recruiters, searchQuery, statusFilter, sortOption);
+  }, [recruiters, searchQuery, statusFilter, sortOption]);
+
+  const applyFilters = (list, search, status, sort = sortOption) => {
     let filtered = list;
     if (search.trim()) {
       const s = search.trim().toLowerCase();
@@ -106,17 +296,80 @@ const AdminDashboard = () => {
     }
     if (status === 'validated') filtered = filtered.filter(r => r.isValidated);
     else if (status === 'pending') filtered = filtered.filter(r => !r.isValidated);
-    setFilteredRecruiters(filtered);
+    setFilteredRecruiters(sortRecruiters(filtered, sort));
   };
 
   const handleSearch = (e) => {
-    setSearchQuery(e.target.value);
-    applyFilters(recruiters, e.target.value, statusFilter);
+    const value = e.target.value;
+    setSearchQuery(value);
+    applyFilters(recruiters, value, statusFilter, sortOption);
   };
 
   const handleFilter = (f) => {
     setStatusFilter(f);
-    applyFilters(recruiters, searchQuery, f);
+    applyFilters(recruiters, searchQuery, f, sortOption);
+  };
+
+  const handleSort = (option) => {
+    setSortOption(option);
+    applyFilters(recruiters, searchQuery, statusFilter, option);
+  };
+
+  const handleLoadMore = () => {
+    if (!hasMore || loadingMore) return;
+    fetchRecruiters(false);
+  };
+
+  const handleBulkApprove = async () => {
+    const candidates = filteredRecruiters.filter(recruiter =>
+      !recruiter.isValidated &&
+      recruiter.validationSteps?.step1_dgi === true &&
+      recruiter.validationSteps?.step2_email === true
+    );
+
+    if (candidates.length === 0) {
+      toast.error('Aucun recruteur visible prêt pour approbation en masse.');
+      return;
+    }
+
+    if (!window.confirm(`Approuver ${candidates.length} recruteur(s) visibles ?`)) {
+      return;
+    }
+
+    setBulkUpdating(true);
+    const results = await Promise.allSettled(candidates.map(async (recruiter) => {
+      const ref = doc(db, 'users', recruiter.id);
+      await updateDoc(ref, {
+        isValidated: true,
+        kycStatus: 'verified',
+        'validationSteps.step3_approved': true,
+        'validationSteps.step3_at': serverTimestamp(),
+        validatedAt: serverTimestamp(),
+        validatedBy: auth.currentUser?.uid,
+        validatedCompany: recruiter.displayName || recruiter.company,
+      });
+      return recruiter.id;
+    }));
+
+    const successCount = results.filter(r => r.status === 'fulfilled').length;
+    const failedCount = results.filter(r => r.status === 'rejected').length;
+
+    const updatedIds = results.filter(res => res.status === 'fulfilled').map(res => res.value);
+    setRecruiters(prev => prev.map(r => {
+      if (updatedIds.includes(r.id)) {
+        return {
+          ...r,
+          isValidated: true,
+          kycStatus: 'verified',
+          validationSteps: { ...(r.validationSteps || {}), step3_approved: true, step3_at: new Date() },
+          validatedAt: new Date(),
+        };
+      }
+      return r;
+    }));
+
+    setBulkUpdating(false);
+    toast.success(`Approuvé ${successCount} recruteur(s). ${failedCount ? `${failedCount} erreurs.` : ''}`);
   };
 
   // Étape 1 : Vérification DGI (manuelle par l'admin)
@@ -227,6 +480,34 @@ const AdminDashboard = () => {
     }
   };
 
+  // Reports moderation helpers
+  const updateReportStatus = async (reportId, status) => {
+    try {
+      await updateDoc(doc(db, 'reports', reportId), { status, reviewedAt: serverTimestamp(), reviewedBy: auth.currentUser?.uid });
+      setReports(prev => prev.filter(r => r.id !== reportId));
+      setReportsCount(c => Math.max(0, c - 1));
+      toast.success('Signalement mis à jour.');
+    } catch (err) {
+      console.error('updateReportStatus error', err);
+      toast.error('Impossible de mettre à jour le signalement.');
+    }
+  };
+
+  const suspendUser = async (userId, reason = 'Suspension manuelle par admin') => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        isSuspended: true,
+        kycStatus: 'suspended',
+        suspendedAt: serverTimestamp(),
+        suspensionReason: reason,
+      });
+      toast.success('Utilisateur suspendu.');
+    } catch (err) {
+      console.error('suspendUser error', err);
+      toast.error('Impossible de suspendre l\'utilisateur.');
+    }
+  };
+
   // Stats
   const totalRecruiters = recruiters.length;
   const validatedCount = recruiters.filter(r => r.isValidated).length;
@@ -271,9 +552,73 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        {/* JOBS MANAGEMENT */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-black text-lg text-sky-800 dark:text-white">Gérer les offres</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={openCreateJob} className="px-3 py-2 rounded-xl bg-sky-500 text-white text-sm flex items-center gap-2">
+                <PlusSquare size={16} /> Ajouter offre
+              </button>
+              <button onClick={fetchJobs} className="px-3 py-2 rounded-xl bg-white dark:bg-transparent border border-sky-100 dark:border-gray-700 text-sm text-sky-800 dark:text-white">Rafraîchir</button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-sky-100 dark:border-gray-700">
+            {jobsLoading ? (
+              <div className="text-sm text-white/80">Chargement des offres...</div>
+            ) : jobs.length === 0 ? (
+              <div className="text-sm text-white/80">Aucune offre trouvée.</div>
+            ) : (
+              <div className="space-y-2">
+                {jobs.map(job => (
+                  <div key={job.id} className="flex items-center justify-between p-3 rounded-xl bg-sky-600 dark:bg-gray-800">
+                    <div>
+                      <div className="font-bold text-white">{job.title}</div>
+                      <div className="text-sm text-white/85">{job.company} — {job.location || '—'}</div>
+                      <div className="text-[11px] text-white/70">{job.createdAt?.toDate ? job.createdAt.toDate().toLocaleString() : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => togglePublish(job)} className={`px-2 py-1 rounded text-xs ${job.isPublished ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'}`}>{job.isPublished ? 'Publié' : 'Brouillon'}</button>
+                      <button onClick={() => openEditJob(job)} className="p-2 rounded bg-white/90 border border-white/20 text-sky-800"><Edit3 size={16} /></button>
+                      <button onClick={() => removeJob(job.id)} className="p-2 rounded bg-white/90 border border-white/20 text-red-600"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* JOB MODAL */}
+        {jobModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 p-4 bg-black/40">
+            <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl border shadow-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-black">{editingJob ? 'Modifier une offre' : 'Nouvelle offre'}</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setJobModalOpen(false)} className="px-3 py-1 rounded-lg text-xs">Fermer</button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <input value={jobForm.title} onChange={e => setJobForm(s => ({ ...s, title: e.target.value }))} placeholder="Titre" className="w-full px-3 py-2 rounded-xl border" />
+                <input value={jobForm.company} onChange={e => setJobForm(s => ({ ...s, company: e.target.value }))} placeholder="Entreprise" className="w-full px-3 py-2 rounded-xl border" />
+                <input value={jobForm.location} onChange={e => setJobForm(s => ({ ...s, location: e.target.value }))} placeholder="Localisation" className="w-full px-3 py-2 rounded-xl border" />
+                <textarea value={jobForm.description} onChange={e => setJobForm(s => ({ ...s, description: e.target.value }))} placeholder="Description" className="w-full px-3 py-2 rounded-xl border h-28" />
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={jobForm.isPublished} onChange={e => setJobForm(s => ({ ...s, isPublished: e.target.checked }))} /> Publiée</label>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setJobModalOpen(false)} className="px-3 py-2 rounded-xl text-sm">Annuler</button>
+                    <button onClick={saveJob} className="px-3 py-2 rounded-xl bg-sky-500 text-white">Enregistrer</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* STATS CARDS */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-5 relative z-20">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 relative z-20">
+          <div className="grid grid-cols-4 gap-3">
             <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-sky-100 dark:border-gray-700 text-center">
               <Users size={20} className="text-sky-400 mx-auto mb-1" />
               <span className="text-2xl font-black text-sky-800 dark:text-gray-100 block">{totalRecruiters}</span>
@@ -289,39 +634,108 @@ const AdminDashboard = () => {
               <span className="text-2xl font-black text-amber-600 dark:text-amber-400 block">{pendingCount}</span>
               <span className="text-[10px] font-bold text-amber-500 uppercase">En attente</span>
             </div>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-sky-100 dark:border-gray-700 text-center">
+              <Building2 size={20} className="text-sky-400 mx-auto mb-1" />
+              <span className="text-2xl font-black text-sky-800 dark:text-gray-100 block">{jobsCount}</span>
+              <span className="text-[10px] font-bold text-sky-400 uppercase">Offres</span>
+            </div>
           </div>
         </div>
 
         {/* FILTRES + RECHERCHE */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={handleSearch}
-                placeholder="Rechercher par nom, entreprise, email, NIU..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-sky-100 dark:border-gray-700 rounded-xl outline-none text-sm text-sky-700 dark:text-gray-300 focus:border-cyan-500"
-              />
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearch}
+                  placeholder="Rechercher par nom, entreprise, email, NIU..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-sky-100 dark:border-gray-700 rounded-xl outline-none text-sm text-sky-700 dark:text-gray-300 focus:border-cyan-500"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {['all', 'pending', 'validated'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => handleFilter(f)}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      statusFilter === f
+                        ? 'bg-cyan-500 text-white'
+                        : 'bg-white dark:bg-gray-800 text-sky-500 border border-sky-100 dark:border-gray-700 hover:bg-sky-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {f === 'all' ? 'Tous' : f === 'pending' ? 'En attente' : 'Vérifiés'}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {['all', 'pending', 'validated'].map(f => (
-                <button
-                  key={f}
-                  onClick={() => handleFilter(f)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    statusFilter === f
-                      ? 'bg-cyan-500 text-white'
-                      : 'bg-white dark:bg-gray-800 text-sky-500 border border-sky-100 dark:border-gray-700 hover:bg-sky-50 dark:hover:bg-gray-700'
-                  }`}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase text-sky-500">Trier</span>
+                <select
+                  value={sortOption}
+                  onChange={(e) => handleSort(e.target.value)}
+                  className="rounded-xl border border-sky-100 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-sky-700 dark:text-gray-200 px-3 py-2 outline-none"
                 >
-                  {f === 'all' ? 'Tous' : f === 'pending' ? 'En attente' : 'Vérifiés'}
-                </button>
-              ))}
+                  {SORT_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleBulkApprove}
+                disabled={bulkUpdating}
+                className="px-4 py-2.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 disabled:opacity-50"
+              >
+                {bulkUpdating ? 'Validation de masse...' : 'Valider visibles'}
+              </button>
+              <button
+                onClick={() => { fetchCounts(); setShowReportsModal(true); }}
+                className="px-3 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 disabled:opacity-50 ml-2"
+                title="Gérer les signalements"
+              >
+                {reportsCount ? `${reportsCount} signalement(s)` : 'Signalements'}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* REPORTS MODAL */}
+        {showReportsModal && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 p-4 bg-black/40">
+            <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl border shadow-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-black">Signalements en attente ({reportsCount})</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowReportsModal(false)} className="px-3 py-1 rounded-lg text-xs">Fermer</button>
+                </div>
+              </div>
+              <div className="space-y-2 max-h-96 overflow-auto">
+                {reports.length === 0 ? (
+                  <div className="text-sm text-sky-500">Aucun signalement récent à afficher.</div>
+                ) : reports.map(r => (
+                  <div key={r.id} className="p-3 border rounded-xl bg-sky-50 dark:bg-gray-700 flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="text-xs text-sky-600 mb-1"><strong>Motif:</strong> {r.reason}</div>
+                      <div className="text-sm text-sky-800 dark:text-gray-100 mb-1">{r.details || '—'}</div>
+                      <div className="text-[11px] text-sky-500">Cible: {r.targetType} / {r.targetId}</div>
+                    </div>
+                    <div className="flex flex-col gap-2 ml-3 shrink-0">
+                      <button onClick={() => updateReportStatus(r.id, 'under_review')} className="px-3 py-1 text-xs rounded-lg bg-amber-100 text-amber-700">En cours</button>
+                      <button onClick={() => updateReportStatus(r.id, 'resolved')} className="px-3 py-1 text-xs rounded-lg bg-teal-100 text-teal-700">Résolu</button>
+                      <button onClick={async () => { await suspendUser(r.targetId); await updateReportStatus(r.id, 'resolved'); }} className="px-3 py-1 text-xs rounded-lg bg-red-100 text-red-700">Suspendre</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* LISTE RECRUTEURS */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 space-y-3">

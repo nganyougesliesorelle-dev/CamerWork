@@ -62,11 +62,18 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isOwner(userId)
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
                     && isValidRole(request.resource.data.role)
+                    && request.resource.data.emailVerified in [true, false]
+                    && request.resource.data.onboardingCompleted is bool
+                    && request.resource.data.setupPending is bool
                     && isValidServerTimestamp(request.resource.data.createdAt);
       allow update: if isAuthenticated() && (
                       isOwner(userId) && !(request.resource.data.diff(resource.data).affectedKeys()
-                           .hasAny(['role', 'kycStatus', 'createdAt']))
+                           .hasAny(['role', 'kycStatus', 'createdAt', 'emailVerified']))
+                           && request.resource.data.uid == resource.data.uid
+                           && request.resource.data.email == resource.data.email
                       || isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['isValidated', 'kycStatus', 'validationSteps', 'validatedAt', 'validatedBy', 'validatedCompany'])
                     );

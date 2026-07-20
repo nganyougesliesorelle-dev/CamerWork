@@ -304,11 +304,11 @@ export async function validateRegistrationPayload(data) {
     errors.push('Vous devez accepter les conditions d’utilisation.');
   }
 
-  if (data?.role === 'candidate' || data?.role === 'candidat' || data?.role === 'student') {
-    if (data?.phone && !validateCmrPhone(data.phone)) {
-      errors.push('Le numéro de téléphone doit être un numéro camerounais valide.');
-    }
+  if (data?.phone && !validateCmrPhone(data.phone)) {
+    errors.push('Le numéro de téléphone doit être un numéro camerounais valide.');
+  }
 
+  if (data?.role === 'candidate' || data?.role === 'candidat' || data?.role === 'student') {
     if (data?.birthDate) {
       const birthDate = new Date(data.birthDate);
       const today = new Date();

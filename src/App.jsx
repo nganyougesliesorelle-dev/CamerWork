@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { messaging, db, auth } from './firebase/firebaseConfig';
 import { onMessage } from 'firebase/messaging';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { PhishingBanner } from './security/PhishingBanner';
 import { LangProvider } from './composants/LangContext';
@@ -78,9 +78,13 @@ function PageLoader() {
   );
 }
 
-function App() {
+function AppRoutes() {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [globalUser, setGlobalUser] = useState(null);
+  const [globalUserData, setGlobalUserData] = useState(null);
+  const [userNeedsOnboarding, setUserNeedsOnboarding] = useState(false);
   const prevAppsRef = useRef({});
 
   usePresenceTracker(globalUser?.uid);
@@ -89,6 +93,34 @@ function App() {
     const unsub = onAuthStateChanged(auth, user => setGlobalUser(user));
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (!globalUser) {
+      setGlobalUserData(null);
+      setUserNeedsOnboarding(false);
+      return;
+    }
+
+    const loadUserData = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', globalUser.uid));
+        const data = userDoc.exists() ? userDoc.data() : null;
+        setGlobalUserData(data);
+        setUserNeedsOnboarding(data?.setupPending === true || data?.onboardingCompleted === false);
+      } catch (error) {
+        console.error('Erreur chargement user data:', error);
+        setUserNeedsOnboarding(false);
+      }
+    };
+
+    loadUserData();
+  }, [globalUser]);
+
+  useEffect(() => {
+    if (globalUser && userNeedsOnboarding && location.pathname !== '/login') {
+      navigate('/login', { replace: true });
+    }
+  }, [globalUser, userNeedsOnboarding, location.pathname, navigate]);
 
   // Écouteur global : changements de statut des candidatures (candidat)
   useEffect(() => {
@@ -160,6 +192,37 @@ function App() {
   }, [t]);
 
   return (
+    <Suspense fallback={<PageLoader />}>
+      <ErrorBoundary showError={import.meta.env.DEV}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Home initialMode="login" />} />
+          <Route path="/signup" element={<Home initialMode="signup" />} />
+          <Route path="/offres" element={<JobList />} />
+          <Route path="/offres/:id" element={<JobDetails />} />
+          <Route path="/profil" element={<Profile />} />
+          <Route path="/profil/:id" element={<Profile />} />
+          <Route path="/mon-profil" element={<Profile />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/chat/:chatId" element={<Chat />} />
+          <Route path="/cv-generator" element={<AtsCv />} />
+          <Route path="/interview-simulator" element={<InterviewSimulator />} />
+          <Route path="/career-dashboard" element={<CandidateDashboard />} />
+          <Route path="/DashboardRecruiter" element={<DashboardRecruiter />} />
+          <Route path="/RecruiterPost" element={<RecruiterPost />} />
+          <Route path="/favoris" element={<FavoritesPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/messages" element={<MessagesList />} />
+          <Route path="/parametres" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </ErrorBoundary>
+    </Suspense>
+  );
+}
+
+function App() {
+  return (
     <LangProvider>
       <ThemeProvider>
         <Router>
@@ -170,33 +233,7 @@ function App() {
             closeButton
             toastOptions={{ style: { borderRadius: '1.2rem' } }}
           />
-
-          <Suspense fallback={<PageLoader />}>
-            <ErrorBoundary showError={import.meta.env.DEV}>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Home initialMode="login" />} />
-                <Route path="/signup" element={<Home initialMode="signup" />} />
-                <Route path="/offres" element={<JobList />} />
-                <Route path="/offres/:id" element={<JobDetails />} />
-                <Route path="/profil" element={<Profile />} />
-                <Route path="/profil/:id" element={<Profile />} />
-                <Route path="/mon-profil" element={<Profile />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/chat/:chatId" element={<Chat />} />
-                <Route path="/cv-generator" element={<AtsCv />} />
-                <Route path="/interview-simulator" element={<InterviewSimulator />} />
-                <Route path="/career-dashboard" element={<CandidateDashboard />} />
-                <Route path="/DashboardRecruiter" element={<DashboardRecruiter />} />
-                <Route path="/RecruiterPost" element={<RecruiterPost />} />
-                <Route path="/favoris" element={<FavoritesPage />} />
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/messages" element={<MessagesList />} />
-                <Route path="/parametres" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </ErrorBoundary>
-          </Suspense>
+          <AppRoutes />
         </Router>
       </ThemeProvider>
     </LangProvider>

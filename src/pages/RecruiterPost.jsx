@@ -136,14 +136,30 @@ const STEPS = [
       return toast.error('Ajoutez au moins 2 compétences requises.');
     }
 
-    const parsedSalary = Number((formData.salary || '').toString().replace(/\s/g, ''));
-    const parsedMin = Number((formData.salaryMin || '').toString().replace(/\s/g, ''));
-    const parsedMax = Number((formData.salaryMax || '').toString().replace(/\s/g, ''));
-    const hasAnySalary = formData.salary || formData.salaryMin || formData.salaryMax;
+    const parseSalaryField = (raw) => {
+      const cleaned = (raw || '').toString().replace(/\s/g, '');
+      if (cleaned === '') return null;
+      const value = Number(cleaned);
+      return Number.isFinite(value) ? value : NaN;
+    };
+
+    const parsedSalary = parseSalaryField(formData.salary);
+    const parsedMin = parseSalaryField(formData.salaryMin);
+    const parsedMax = parseSalaryField(formData.salaryMax);
+    const hasAnySalary = [formData.salary, formData.salaryMin, formData.salaryMax].some((value) => String(value || '').trim() !== '');
     if ((formData.type !== 'Stage') && !hasAnySalary) {
       return toast.error('Le salaire est requis pour les offres non stage.');
     }
     if (hasAnySalary) {
+      if (formData.salary && Number.isNaN(parsedSalary)) {
+        return toast.error('Le salaire doit être un nombre valide en CFA.');
+      }
+      if (formData.salaryMin && Number.isNaN(parsedMin)) {
+        return toast.error('Le salaire minimum doit être un nombre valide.');
+      }
+      if (formData.salaryMax && Number.isNaN(parsedMax)) {
+        return toast.error('Le salaire maximum doit être un nombre valide.');
+      }
       const hasNegative = [parsedSalary, parsedMin, parsedMax].some((value) => Number.isFinite(value) && value < 0);
       if (hasNegative) {
         return toast.error('Le salaire ne peut pas être négatif.');

@@ -55,6 +55,7 @@ const Home = ({ initialMode = 'login' }) => {
   const [profileSkillInput, setProfileSkillInput] = useState('');
   const [profileSkillSuggestions, setProfileSkillSuggestions] = useState([]);
   const [cvReady, setCvReady] = useState(false);
+  const [portfolioLink, setPortfolioLink] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -73,15 +74,23 @@ const Home = ({ initialMode = 'login' }) => {
 
         if (!user.emailVerified) {
           setIsWaitingVerification(true);
+          return;
+        }
+
+        setIsWaitingVerification(false);
+        if (userData?.role === 'recruiter') {
+          navigate('/DashboardRecruiter');
+        } else if (userData?.role === 'admin') {
+          navigate('/admin');
         } else {
-          setIsWaitingVerification(false);
+          navigate('/offres');
         }
       } catch (error) {
         console.error('Erreur lecture profil auth:', error);
       }
     });
     return () => unsubscribe();
-  }, [loading]);
+  }, [loading, navigate]);
 
   const handleForgotPass = async () => {
     if (!email) {
@@ -165,7 +174,6 @@ const Home = ({ initialMode = 'login' }) => {
           return;
         }
         toast.success(t('notifications.success_login', 'Connexion réussie !'));
-        requestNotificationPermission(auth.currentUser.uid);
         if (result.role === 'recruiter') {
           navigate('/DashboardRecruiter');
         } else {
@@ -191,6 +199,7 @@ const Home = ({ initialMode = 'login' }) => {
         bio: profileBio.trim(),
         skills: profileSkills,
         cvReady,
+        portfolioLink: portfolioLink.trim() || '',
         onboardingCompleted: true,
         setupPending: false,
         updatedAt: serverTimestamp(),
@@ -565,6 +574,17 @@ const Home = ({ initialMode = 'login' }) => {
                   />
                   Je souhaite être contacté avec mon CV prêt à partager.
                 </label>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-sky-200">Portfolio (optionnel)</label>
+                  <input
+                    value={portfolioLink}
+                    onChange={(e) => setPortfolioLink(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#075985] px-4 py-3 text-sm text-sky-100 outline-none focus:border-cyan-500"
+                    placeholder="Lien vers votre portfolio ou vos réalisations"
+                  />
+                  <p className="text-[11px] text-sky-400">Facultatif : vous pouvez l’ajouter maintenant ou plus tard depuis votre profil.</p>
+                </div>
 
                 <div className="flex justify-end">
                   <button
