@@ -270,13 +270,20 @@ const AdminDashboard = () => {
   };
 
   const togglePublish = async (job) => {
+    if (!job?.id) {
+      console.error('togglePublish: missing job id', job);
+      toast.error('ID de l\'offre introuvable.');
+      return;
+    }
+
     try {
       await updateDoc(doc(db, 'jobs', job.id), { isPublished: !job.isPublished, updatedAt: serverTimestamp() });
-      fetchJobs();
+      await fetchJobs();
       toast.success(`Offre ${job.isPublished ? 'dépubliée' : 'publiée'}.`);
     } catch (err) {
       console.error('togglePublish error', err);
-      toast.error('Impossible de mettre à jour le statut de publication.');
+      const message = err?.message || String(err);
+      toast.error(`Impossible de mettre à jour le statut de publication: ${message}`);
     }
   };
 
